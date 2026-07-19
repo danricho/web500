@@ -1,0 +1,6 @@
+# LF everywhere - the project is Linux-hosted; git normalises on commit
+* text=auto eol=lf
+
+# binaries - never touch
+*.png binary
+*.ico binary
