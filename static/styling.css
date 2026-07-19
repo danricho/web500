@@ -1,0 +1,1047 @@
+:root {
+  /* --primary-color: #1eaedb; */
+  --primary-color: #8f41d8;
+  --primary-color-light: #b47fe6;
+  --primary-color-lighter: #cdaaee;
+
+  --success-green-light: #97c278;
+  --success-green: #608d3f;
+  --warning-orange-light: #d19a66;
+  --warning-orange: #9b6917;
+  --danger-red-lighter: hsl(5, 48%, 65%);
+  --danger-red-light: #be5046;
+  --danger-red: hsl(5, 48%, 45%);
+
+  --card-white: #e9ecf0;
+  --card-border: #babdc2;
+  --card-pattern-border: var(--primary-color-light);
+  --card-red-light: #f08078;
+  --card-red: #f44234;
+  --card-black-light: #5a5959;
+  --card-black: #252525;
+
+  --bg-less-dark: #31363f;
+  --bg-dark: #282c34;
+  --bg-darker: #21252b;
+  --bg-darker-trans: rgba(
+    0,
+    0,
+    0,
+    0.17
+  ); /* same as bg-darker when over bg-dark */
+  --fg-lightest: #f0f2f4;
+  --fg-lighter: #cfd1d7;
+  --fg-light: #abb2bf;
+  --fg-medium: #818896;
+  --fg-dark: #5c6370;
+  --fg-hue-1: #56b6c2;
+  --fg-hue-2: #61aeee;
+  --fg-hue-3: #c678dd;
+  --fg-hue-4-light: #aed095;
+  --fg-hue-4: #98c379;
+  --fg-hue-4-darker: #77b04f;
+  --fg-hue-4-darkest: #608d3f;
+  --fg-hue-5-lighter: hsl(355, 66%, 80%);
+  --fg-hue-5-light: #e48189;
+  --fg-hue-5: #dd5f6a;
+  --fg-hue-5-2: #be5046;
+  --fg-hue-6: #d19a66;
+  --fg-hue-6-2: #e6c07b;
+
+  /* component tokens — semantic aliases onto the palette above */
+  --radius: 0.5rem;
+  --border-subtle: var(--bg-less-dark);
+  --border-strong: var(--fg-dark);
+  --ring: var(--primary-color);
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--fg-light);
+}
+p {
+  margin: 0;
+}
+a {
+  color: var(--primary-color) !important;
+}
+/* HOVER STYLES ONLY ON DEVICES THAT REALLY HOVER - ON iOS/TOUCH A TAP WOULD
+   OTHERWISE LEAVE A RESIDUAL "STUCK" HOVER STATE UNTIL THE NEXT TAP ELSEWHERE */
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    color: var(--primary-color-light) !important;
+  }
+}
+
+.inline-icon {
+  height: 1em; /* Matches the surrounding font size */
+  width: auto; /* Maintains original aspect ratio */
+  fill: currentColor; /* Allows SVG to inherit text color */
+  vertical-align: baseline;
+}
+
+.inline-icon-cards {
+  height: 0.75em; /* Matches the surrounding font size */
+  width: auto; /* Maintains original aspect ratio */
+  fill: currentColor; /* Allows SVG to inherit text color */
+}
+
+/* FLEX CENTERING SWEEP: EVERY BUTTON CENTERS ITS CONTENT (TEXT, SVG ICONS OR
+   BOTH) VERTICALLY AND HORIZONTALLY, REPLACING SKELETON'S line-height TRICK */
+.button,
+button,
+input[type="submit"],
+input[type="reset"],
+input[type="button"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.roboto-font {
+  font-family: "Roboto Slab", serif;
+}
+
+.light-on-dark {
+  background-color: var(--bg-dark);
+  color: var(--fg-light);
+}
+.light-on-darker {
+  background-color: var(--bg-darker);
+  color: var(--fg-light);
+}
+.light-on-darker-trans {
+  background-color: var(--bg-darker-trans);
+  color: var(--fg-light);
+}
+
+.bg-lighter {
+  background-color: var(--fg-lighter);
+}
+.bg-light {
+  background-color: var(--fg-light);
+}
+.dark-on-light {
+  color: var(--bg-darker);
+  background-color: var(--fg-lighter);
+}
+.dark-on-gray {
+  color: var(--bg-darker);
+  background-color: var(--fg-medium);
+}
+
+.bg-cross-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%2321252b' fill-opacity='1'%3E%3Cpath d='M0 38.59l2.83-2.83 1.41 1.41L1.41 40H0v-1.41zM0 1.4l2.83 2.83 1.41-1.41L1.41 0H0v1.41zM38.59 40l-2.83-2.83 1.41-1.41L40 38.59V40h-1.41zM40 1.41l-2.83 2.83-1.41-1.41L38.59 0H40v1.41zM20 18.6l2.83-2.83 1.41 1.41L21.41 20l2.83 2.83-1.41 1.41L20 21.41l-2.83 2.83-1.41-1.41L18.59 20l-2.83-2.83 1.41-1.41L20 18.59z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.card-back-pattern {
+  background-color: var(--card-pattern-border);
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='12' viewBox='0 0 20 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 12c0-.622-.095-1.221-.27-1.785A5.982 5.982 0 0 0 10 12c1.67 0 3.182-.683 4.27-1.785A5.998 5.998 0 0 0 14 12h2a4 4 0 0 1 4-4V6c-1.67 0-3.182.683-4.27 1.785C15.905 7.22 16 6.622 16 6c0-.622-.095-1.221-.27-1.785A5.982 5.982 0 0 0 20 6V4a4 4 0 0 1-4-4h-2c0 .622.095 1.221.27 1.785A5.982 5.982 0 0 0 10 0C8.33 0 6.818.683 5.73 1.785 5.905 1.22 6 .622 6 0H4a4 4 0 0 1-4 4v2c1.67 0 3.182.683 4.27 1.785A5.998 5.998 0 0 1 4 6c0-.622.095-1.221.27-1.785A5.982 5.982 0 0 1 0 6v2a4 4 0 0 1 4 4h2zm-4 0a2 2 0 0 0-2-2v2h2zm16 0a2 2 0 0 1 2-2v2h-2zM0 2a2 2 0 0 0 2-2H0v2zm20 0a2 2 0 0 1-2-2h2v2zm-10 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z' fill='%23e9ecf0' fill-opacity='1' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+.quarter-opac {
+  opacity: 0.25;
+}
+.half-opac {
+  opacity: 0.5;
+}
+.three-quarter-opac {
+  opacity: 0.75;
+}
+
+.border-rounded {
+  border-radius: 8px;
+}
+.border-rounded-small {
+  border-radius: 4px;
+}
+
+.border-red {
+  border: 2px solid var(--fg-hue-5);
+}
+
+.bold {
+  font-weight: bold;
+}
+.italic {
+  font-style: italic;
+}
+.underline {
+  text-decoration: underline;
+}
+.line-through {
+  text-decoration: line-through;
+}
+
+.c-success {
+  color: var(--success-green);
+}
+.f-primary {
+  fill: var(--primary-color);
+}
+.f-success,
+.f-green {
+  fill: var(--success-green);
+}
+.c-warning {
+  color: var(--warning-orange);
+}
+.c-danger {
+  color: var(--danger-red);
+}
+.f-danger {
+  fill: var(--danger-red);
+}
+.c-dark {
+  color: var(--bg-darker);
+}
+.c-gray,
+.c-light {
+  color: var(--fg-light);
+}
+.f-light-red {
+  fill: var(--danger-red-lighter);
+}
+.f-red {
+  fill: var(--danger-red);
+}
+.f-warning-orange {
+  fill: var(--warning-orange);
+}
+
+.game-dialog {
+  -webkit-transition: color 3s ease;
+  -moz-transition: color 3s ease;
+  -o-transition: color 3s ease;
+  transition: color 3s ease;
+}
+.game-dialog.dialog-new {
+  color: var(--primary-color-light);
+  -webkit-transition: color 0.1s ease;
+  -moz-transition: color 0.1s ease;
+  -o-transition: color 0.1s ease;
+  transition: color 0.1s ease;
+}
+
+/* DE-EMPHASISED PASSED BIDS / "DIDN'T BID" (WRAPPED IN <small class="bid-passed">) */
+small.bid-passed {
+  font-weight: normal;
+  opacity: 0.55;
+}
+
+img,
+svg {
+  vertical-align: middle;
+}
+
+/* .focus .name { color: var(--card-red); } */
+/* TRIPLE FLASH AT THE START OF EVERY 5s CYCLE WHILE THE PLAYER STAYS IN FOCUS
+   (5s * 2% = 100ms PER HALF-PULSE) */
+@keyframes attention-flash {
+  0%,
+  4%,
+  8%,
+  12% {
+    background-color: var(--fg-lighter);
+  }
+  2%,
+  6%,
+  10%,
+  14%,
+  100% {
+    background-color: var(--primary-color);
+  }
+}
+.focus {
+  background-color: var(--primary-color);
+  animation: attention-flash 4s linear infinite;
+}
+/* SAME RHYTHM FOR THE BID OK BUTTON WHILE A COMPLETE BID AWAITS SUBMISSION */
+@keyframes attention-flash-btn {
+  0%,
+  4%,
+  8%,
+  12% {
+    background-color: var(--primary-color);
+  }
+  2%,
+  6%,
+  10%,
+  14%,
+  100% {
+    background-color: var(--bg-dark);
+  }
+}
+button.attention {
+  animation: attention-flash-btn 4s linear infinite;
+}
+
+/* BUTTON STUFF */
+.button-small {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* SVG CHIP WRAPPERS CENTER THEIR ICON WITH THE SURROUNDING TEXT */
+.dealer-chip,
+.bid-winner {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* TRUMP SUIT INDICATOR (TOP RIGHT) - A BORDERLESS, NON-CLICKABLE BUTTON FACE */
+#trump-indicator button {
+  border: none;
+  pointer-events: none;
+}
+#trump-indicator svg {
+  height: 1.6em;
+  width: auto;
+}
+.bidding-box button {
+  font-size: 1.5rem;
+  text-transform: none;
+}
+
+button.button-suit-red,
+button.button-suit-red:focus {
+  background-color: var(--card-red);
+}
+
+button.button-suit-black,
+button.button-suit-black:focus {
+  background-color: var(--card-black);
+}
+
+button.button-danger,
+button.button-danger:focus {
+  background-color: var(--danger-red);
+}
+
+button.button-warning,
+button.button-warning:focus {
+  background-color: var(--warning-orange);
+}
+
+button.button-success,
+button.button-success:focus {
+  background-color: var(--success-green);
+}
+
+/* HOVER LIGHTENING - REAL POINTERS ONLY (SEE NOTE ABOVE); :focus DELIBERATELY
+   PINNED TO THE BASE COLOUR SO A TAP/CLICK DOESN'T LEAVE A LIGHTENED BUTTON.
+   KEYBOARD USERS STILL GET THE button:focus-visible OUTLINE RING. */
+@media (hover: hover) and (pointer: fine) {
+  button.button-suit-red:hover {
+    background-color: var(--card-red-light);
+  }
+  button.button-suit-black:hover {
+    background-color: var(--card-black-light);
+  }
+  button.button-danger:hover {
+    background-color: var(--danger-red-light);
+  }
+  button.button-warning:hover {
+    background-color: var(--warning-orange-light);
+  }
+  button.button-success:hover {
+    background-color: var(--success-green-light);
+  }
+}
+
+button:disabled,
+button.faded {
+  opacity: 0.35;
+}
+
+/* SKELETON COLOR OVERRIDES (shadcn-ish: subtle borders, soft hover, focus ring).
+   :hover AND :focus ARE PINNED TO THE BASE LOOK HERE SO SKELETON'S OWN HOVER/FOCUS
+   COLOURS NEVER STICK ON TOUCH DEVICES; REAL HOVER STYLING IS RE-APPLIED BY THE
+   (hover: hover) MEDIA BLOCK BELOW, WHICH WINS BY COMING LATER IN THIS FILE. */
+button,
+.button,
+button:focus,
+button:hover,
+.button:hover {
+  background-color: var(--bg-dark);
+  color: var(--fg-lighter);
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 2px);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    background-color: var(--bg-less-dark);
+    color: var(--fg-lightest);
+    border: 1px solid var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
+  }
+  button:disabled:hover {
+    border-color: var(--border-strong);
+    box-shadow: none;
+  }
+}
+button.active {
+  background-color: var(--primary-color-light);
+  color: var(--bg-dark);
+  border: 1px solid var(--primary-color-light);
+}
+button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+  background-color: var(--bg-dark);
+  color: var(--fg-light);
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 2px);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+input[type="email"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+input[type="text"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  background-color: var(--bg-dark);
+  color: var(--fg-lightest);
+  border: 1px solid var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent);
+  outline: 0;
+}
+
+/* SELECTED BOOTSTRAP TEXT ALIGNMENTS */
+.text-start {
+  text-align: left;
+}
+.text-end {
+  text-align: right;
+}
+.text-center {
+  text-align: center;
+}
+.text-lowercase {
+  text-transform: lowercase;
+}
+.text-uppercase {
+  text-transform: uppercase;
+}
+.text-capitalize {
+  text-transform: capitalize;
+}
+
+/* BOOSTRAP BORDERS */
+.border {
+  border: 1px;
+}
+.border-0 {
+  border: 0;
+}
+.border-top {
+  border-top: 1px;
+}
+.border-top-0 {
+  border-top: 0;
+}
+.border-end {
+  border-right: 1px;
+}
+.border-end-0 {
+  border-right: 0;
+}
+.border-bottom {
+  border-bottom: 1px;
+}
+.border-bottom-0 {
+  border-bottom: 0;
+}
+.border-start {
+  border-left: 1px;
+}
+.border-start-0 {
+  border-left: 0;
+}
+
+/* BOOTSTRAP SPACING */
+.m-0 {
+  margin: 0 !important;
+}
+.m-1 {
+  margin: 0.25rem !important;
+}
+.m-2 {
+  margin: 0.5rem !important;
+}
+.m-3 {
+  margin: 1rem !important;
+}
+.m-4 {
+  margin: 1.5rem !important;
+}
+.m-5 {
+  margin: 3rem !important;
+}
+.m-auto {
+  margin: auto !important;
+}
+.mx-0 {
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+}
+.mx-1 {
+  margin-right: 0.25rem !important;
+  margin-left: 0.25rem !important;
+}
+.mx-2 {
+  margin-right: 0.5rem !important;
+  margin-left: 0.5rem !important;
+}
+.mx-3 {
+  margin-right: 1rem !important;
+  margin-left: 1rem !important;
+}
+.mx-4 {
+  margin-right: 1.5rem !important;
+  margin-left: 1.5rem !important;
+}
+.mx-5 {
+  margin-right: 3rem !important;
+  margin-left: 3rem !important;
+}
+.mx-auto {
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+.my-0 {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.my-1 {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+.my-2 {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+.my-3 {
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+.my-4 {
+  margin-top: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+.my-5 {
+  margin-top: 3rem !important;
+  margin-bottom: 3rem !important;
+}
+.my-auto {
+  margin-top: auto !important;
+  margin-bottom: auto !important;
+}
+.mt-0 {
+  margin-top: 0 !important;
+}
+.mt-1 {
+  margin-top: 0.25rem !important;
+}
+.mt-2 {
+  margin-top: 0.5rem !important;
+}
+.mt-3 {
+  margin-top: 1rem !important;
+}
+.mt-4 {
+  margin-top: 1.5rem !important;
+}
+.mt-5 {
+  margin-top: 3rem !important;
+}
+.mt-auto {
+  margin-top: auto !important;
+}
+.me-0 {
+  margin-right: 0 !important;
+}
+.me-1 {
+  margin-right: 0.25rem !important;
+}
+.me-2 {
+  margin-right: 0.5rem !important;
+}
+.me-3 {
+  margin-right: 1rem !important;
+}
+.me-4 {
+  margin-right: 1.5rem !important;
+}
+.me-5 {
+  margin-right: 3rem !important;
+}
+.me-auto {
+  margin-right: auto !important;
+}
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+.mb-1 {
+  margin-bottom: 0.25rem !important;
+}
+.mb-2 {
+  margin-bottom: 0.5rem !important;
+}
+.mb-3 {
+  margin-bottom: 1rem !important;
+}
+.mb-4 {
+  margin-bottom: 1.5rem !important;
+}
+.mb-5 {
+  margin-bottom: 3rem !important;
+}
+.mb-auto {
+  margin-bottom: auto !important;
+}
+.ms-0 {
+  margin-left: 0 !important;
+}
+.ms-1 {
+  margin-left: 0.25rem !important;
+}
+.ms-2 {
+  margin-left: 0.5rem !important;
+}
+.ms-3 {
+  margin-left: 1rem !important;
+}
+.ms-4 {
+  margin-left: 1.5rem !important;
+}
+.ms-5 {
+  margin-left: 3rem !important;
+}
+.ms-auto {
+  margin-left: auto !important;
+}
+.p-0 {
+  padding: 0 !important;
+}
+.p-1 {
+  padding: 0.25rem !important;
+}
+.p-2 {
+  padding: 0.5rem !important;
+}
+.p-3 {
+  padding: 1rem !important;
+}
+.p-4 {
+  padding: 1.5rem !important;
+}
+.p-5 {
+  padding: 3rem !important;
+}
+.px-0 {
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+.px-1 {
+  padding-right: 0.25rem !important;
+  padding-left: 0.25rem !important;
+}
+.px-2 {
+  padding-right: 0.5rem !important;
+  padding-left: 0.5rem !important;
+}
+.px-3 {
+  padding-right: 1rem !important;
+  padding-left: 1rem !important;
+}
+.px-4 {
+  padding-right: 1.5rem !important;
+  padding-left: 1.5rem !important;
+}
+.px-5 {
+  padding-right: 3rem !important;
+  padding-left: 3rem !important;
+}
+.py-0 {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+.py-1 {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+.py-2 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+.py-3 {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+.py-4 {
+  padding-top: 1.5rem !important;
+  padding-bottom: 1.5rem !important;
+}
+.py-5 {
+  padding-top: 3rem !important;
+  padding-bottom: 3rem !important;
+}
+.pt-0 {
+  padding-top: 0 !important;
+}
+.pt-1 {
+  padding-top: 0.25rem !important;
+}
+.pt-2 {
+  padding-top: 0.5rem !important;
+}
+.pt-3 {
+  padding-top: 1rem !important;
+}
+.pt-4 {
+  padding-top: 1.5rem !important;
+}
+.pt-5 {
+  padding-top: 3rem !important;
+}
+.pe-0 {
+  padding-right: 0 !important;
+}
+.pe-1 {
+  padding-right: 0.25rem !important;
+}
+.pe-2 {
+  padding-right: 0.5rem !important;
+}
+.pe-3 {
+  padding-right: 1rem !important;
+}
+.pe-4 {
+  padding-right: 1.5rem !important;
+}
+.pe-5 {
+  padding-right: 3rem !important;
+}
+.pb-0 {
+  padding-bottom: 0 !important;
+}
+.pb-1 {
+  padding-bottom: 0.25rem !important;
+}
+.pb-2 {
+  padding-bottom: 0.5rem !important;
+}
+.pb-3 {
+  padding-bottom: 1rem !important;
+}
+.pb-4 {
+  padding-bottom: 1.5rem !important;
+}
+.pb-5 {
+  padding-bottom: 3rem !important;
+}
+.ps-0 {
+  padding-left: 0 !important;
+}
+.ps-1 {
+  padding-left: 0.25rem !important;
+}
+.ps-2 {
+  padding-left: 0.5rem !important;
+}
+.ps-3 {
+  padding-left: 1rem !important;
+}
+.ps-4 {
+  padding-left: 1.5rem !important;
+}
+.ps-5 {
+  padding-left: 3rem !important;
+}
+
+/* MODALS */
+#lobby-modal,
+#scores-modal,
+#settings-modal,
+#bid-ref-modal,
+#rules-modal,
+#disconnected-modal {
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  pointer-events: auto; /* backdrop catches clicks (close-on-backdrop + blocks the game behind) */
+}
+.modal-box {
+  min-width: min(320px, 92vw);
+  max-width: max(95vw, 640px);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 3rem;
+}
+.modal-box-border {
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+/* stacked, uniform-width action buttons (settings modal) */
+.modal-actions button {
+  display: flex; /* BLOCK-LEVEL BUT STILL FLEX-CENTERS ITS CONTENT */
+  width: 100%;
+  max-width: 280px;
+  margin: 0.375rem auto;
+}
+/* side-by-side button group occupying one row of the stacked column */
+.modal-actions .modal-btn-row {
+  display: flex;
+  gap: 0.2rem;
+  width: 100%;
+  max-width: 280px;
+  margin: 0.375rem auto;
+}
+.modal-actions .modal-btn-row button {
+  flex: 1 1 0;
+  max-width: none;
+  margin: 0;
+}
+/* footer meta block (rules link / credit / user email) */
+.modal-meta {
+  margin-top: 1.25rem;
+  line-height: 1.6;
+}
+.modal-meta small {
+  display: block;
+}
+
+/* Phones: portrait (narrow) or landscape (short) */
+@media (max-width: 600px), (max-height: 500px) {
+  .modal-box {
+    padding: 3rem 1rem;
+    max-height: 94vh;
+  }
+}
+
+/* GAME RULES MODAL */
+/* flex column: title + close button stay put, only the text scrolls */
+#rules-modal .modal-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+.rules-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  text-align: left;
+  width: 100%;
+  padding-right: 0.75rem;
+  scrollbar-width: none; /* Firefox */
+}
+.rules-scroll::-webkit-scrollbar {
+  display: none;
+}
+.rules-scroll::-webkit-scrollbar-thumb {
+  background: var(--fg-dark);
+  border-radius: 3px;
+}
+#rules-modal .hide-rules {
+  flex-shrink: 0;
+}
+.rules-scroll h6 {
+  margin: 1.25rem 0 0.4rem;
+  color: var(--primary-color-light);
+  font-weight: 600;
+}
+.rules-scroll h6:first-child {
+  margin-top: 0;
+}
+.rules-scroll p,
+.rules-scroll ul {
+  margin: 0 0 0.6rem;
+  line-height: 1.55;
+}
+.rules-scroll ul {
+  padding-left: 1.4rem;
+}
+.rules-scroll li {
+  margin-bottom: 0.25rem;
+}
+.rules-tag {
+  display: inline-block;
+  padding: 0 0.35rem;
+  border: 1px solid var(--fg-hue-6);
+  border-radius: 0.25rem;
+  color: var(--fg-hue-6);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+.rules-credit {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--fg-medium);
+  line-height: 1.5;
+}
+
+/* BID SCORE REFERENCE TABLE */
+.bid-ref-table {
+  border-collapse: collapse;
+}
+.bid-ref-table th,
+.bid-ref-table td {
+  padding: 0.2rem 0.75rem;
+  text-align: center;
+}
+.bid-ref-table thead th {
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--fg-medium);
+  font-weight: 600;
+}
+.bid-ref-table th:first-child,
+.bid-ref-table td:first-child {
+  border-right: 1px solid var(--border-subtle);
+}
+.bid-ref-table tbody tr + tr td {
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* SCOREBOARD PER-HAND TABLE */
+.score-table-scroll {
+  max-height: 45vh;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+.score-table-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Edge */
+}
+.score-table {
+  border-collapse: collapse;
+}
+/* 1rem cell padding, zebra rows, heading flipped to dark-on-light, outcome colours +
+   bolder running totals (spans set by scoreCell) */
+.score-table th,
+.score-table td {
+  padding: 1rem;
+  text-align: center;
+}
+.score-table th:first-child,
+.score-table td:first-child {
+  border-right: 1px solid var(--border-subtle);
+}
+.score-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--fg-lighter);
+  color: var(--bg-darker);
+  font-weight: 600;
+  box-shadow: 0 1px 0 var(--border-strong);
+}
+.score-table tbody td {
+  line-height: 1.3rem;
+  padding: 1rem;
+}
+.score-table tbody tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.05); /* very light zebra tint */
+}
+.score-table tbody tr + tr td {
+  border-top: 1px solid var(--border-subtle);
+}
+.score-table .score-running {
+  font-weight: 800;
+  font-size: 1.5rem;
+}
+.score-table .score-made {
+  color: var(--success-green-light);
+}
+.score-table .score-failed {
+  color: var(--danger-red-lighter);
+}
+.score-winner {
+  font-weight: bold;
+  text-decoration: underline;
+  color: var(--success-green);
+}
+
+/* robot icon (rendered for the B| bot-name prefix) sits nicely on the text baseline */
+.bot-icon {
+  vertical-align: -0.125em;
+}
+
+/* SERVER-SENT TOASTS - TOP-RIGHT STACK, COLOURED BY kind, FADE OUT VIA .toast-hide */
+#toast-stack {
+  pointer-events: none; /* never block clicks on what's underneath */
+  max-width: 22rem;
+}
+.toast {
+  margin: 0.4rem 0;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  background-color: var(--bg-darker);
+  color: var(--fg-lighter);
+  border-left: 4px solid var(--primary-color-lighter);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  text-align: left;
+  opacity: 0.95;
+  transition: opacity 0.7s ease;
+}
+.toast-hide {
+  opacity: 0;
+}
+.toast-category {
+  /* BOLD ALL-CAPS CATEGORY HEADING ABOVE THE MESSAGE (SERVER SENDS IT UPPERCASE) */
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  margin-bottom: 0;
+}
+.toast-info {
+  border-left-color: var(--primary-color-lighter);
+}
+.toast-info .toast-category {
+  color: var(--primary-color-lighter);
+}
+.toast-success {
+  border-left-color: var(--success-green-light);
+}
+.toast-success .toast-category {
+  color: var(--success-green-light);
+}
+.toast-warning {
+  border-left-color: var(--warning-orange-light);
+}
+.toast-warning .toast-category {
+  color: var(--warning-orange-light);
+}
+.toast-danger {
+  border-left-color: var(--danger-red-lighter);
+}
+.toast-danger .toast-category {
+  color: var(--danger-red-lighter);
+}

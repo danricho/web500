@@ -1,0 +1,11 @@
+click
+Flask
+Flask-SocketIO
+gunicorn
+importlib-metadata
+itsdangerous
+Jinja2
+MarkupSafe
+schedule
+Werkzeug
+zipp

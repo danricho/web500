@@ -1,0 +1,20 @@
+data/
+venv/
+
+__pycache__/
+.env
+*.log
+
+# deployment-local files - host config, not the project (see README for
+# the generic systemd unit and run commands)
+service_config/
+archive/
+
+# claude config
+.claude/
+CLAUDE.md
+
+# OS junk (tree lives on a network share - any OS may browse it)
+.DS_Store
+Thumbs.db
+desktop.ini

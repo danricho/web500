@@ -1,0 +1,209 @@
+card {
+  width: 120px;
+  height: 180px;
+  display: block;
+  background-color: var(--card-white);
+  color: var(--card-black);
+  border: 1px solid var(--card-border);
+}
+card p {
+  margin: 0px;
+  font-family: "Roboto Slab", serif;
+} /* font-family: Georgia, serif; */
+card .index {
+  font-size: 2.3rem;
+  font-weight: bold;
+  margin-left: 3px;
+  padding: 5px;
+  line-height: 1;
+}
+/* second index pinned to the opposite corner and rotated, like a real card. auto
+   top/left margins push it bottom-right within the face grid; the 5px right margin
+   mirrors the top-left copy's margin-left. rotation is about the div's own centre. */
+card .index-flipped {
+  margin: auto 3px 0 auto;
+  transform: rotate(180deg);
+}
+card .big {
+  font-weight: bold;
+  padding: 5px;
+  font-size: 5rem;
+  line-height: 45px;
+  margin-top: 35px;
+}
+/* "10" is the only two-character rank (rank-10 class set where ranks are filled in):
+   pull the 1 and 0 together, then squeeze the pair horizontally. the trailing
+   margin-right cancels the letter-spacing applied after the final character so the
+   text stays visually centred. */
+card.rank-10 p.rank {
+  letter-spacing: -0.08em;
+  margin-left: -0.08em;
+  transform: scaleX(0.85);
+  transform-origin: 50% 50%;
+}
+card face.back div.card-back-pattern {
+  margin: 12px;
+  width: 94px;
+  height: 154px;
+}
+
+.p-hand card {
+  transform-origin: 50% 300%;
+  transform: rotate(var(--fan-r, 0deg))
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+.p-hand card:nth-child(1) {
+  --fan-r: -18deg;
+}
+.p-hand card:nth-child(2) {
+  --fan-r: -14deg;
+}
+.p-hand card:nth-child(3) {
+  --fan-r: -10deg;
+}
+.p-hand card:nth-child(4) {
+  --fan-r: -6deg;
+}
+.p-hand card:nth-child(5) {
+  --fan-r: -2deg;
+}
+.p-hand card:nth-child(6) {
+  --fan-r: 2deg;
+}
+.p-hand card:nth-child(7) {
+  --fan-r: 6deg;
+}
+.p-hand card:nth-child(8) {
+  --fan-r: 10deg;
+}
+.p-hand card:nth-child(9) {
+  --fan-r: 14deg;
+}
+.p-hand card:nth-child(10) {
+  --fan-r: 18deg;
+}
+
+.p-kitty card {
+  transform-origin: 50% 300%;
+  transform: rotate(var(--fan-r, 0deg)) translateY(-60px)
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+.p-kitty card:nth-child(1) {
+  --fan-r: 4deg;
+}
+.p-kitty card:nth-child(2) {
+  --fan-r: 8deg;
+}
+.p-kitty card:nth-child(3) {
+  --fan-r: 12deg;
+}
+
+card#p-me-played {
+  transform: translateY(125px) rotate(calc(-10deg + 0deg))
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+card#p-next-played {
+  transform: translateX(-125px) rotate(calc(-10deg + 90deg))
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+card#p-partner-played {
+  transform: translateY(-125px) rotate(calc(-10deg + 180deg))
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+card#p-previous-played {
+  transform: translateX(125px) rotate(calc(-10deg + 270deg))
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+#table-kitty card:nth-child(1) {
+  transform: translateX(-20px)
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+#table-kitty card:nth-child(2) {
+  transform: translateX(0px)
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+#table-kitty card:nth-child(3) {
+  transform: translateX(20px)
+    translate(var(--jitter-x, 0px), var(--jitter-y, 0px))
+    rotate(var(--jitter-r, 0deg));
+}
+
+card .card-back-pattern {
+  border: 1px solid var(--card-pattern-border);
+}
+
+#p-me card {
+  cursor: pointer;
+}
+
+#p-me card.selected {
+  background: var(--primary-color-lighter);
+  border-color: var(--primary-color);
+}
+
+.suit-red {
+  color: var(--card-red);
+}
+/* on cards this repeats the base colour, but the class is also applied to non-card
+   text (bid-to-beat, dialog suit symbols) which would otherwise inherit the page
+   colour - keep it */
+.suit-black {
+  color: var(--card-black);
+}
+
+/* misère: the sat-out partner's cards are hidden */
+.player.sitting-out .p-cards {
+  opacity: 0 !important;
+}
+
+/* joker vs normal face is class-driven (is-joker set by updateArrayCards) with NO
+   inline display styles - jQuery .show() could pin display:block on the grid-stacked
+   .joker on iOS when toggled while the card was hidden, breaking the overlay layout
+   until a refresh */
+card .joker {
+  display: none;
+}
+
+card.is-joker .joker {
+  display: grid;
+}
+card.is-joker .index,
+card.is-joker .big {
+  display: none;
+}
+
+.joker-icon {
+  display: flex;
+  flex-direction: column; /* svg above the Web500 text */
+  align-items: center; /* horizontal centre */
+  justify-content: center; /* vertical centre */
+}
+
+.joker-icon path {
+  fill: var(--primary-color);
+}
+.joker-text {
+  /* font-family: "Roboto Slab", serif; */
+  font-weight: bold;
+  margin: 5px 4px;
+  font-size: 1.9rem;
+  line-height: 1.6rem;
+  font-weight: bold;
+  margin-left: 3px;
+  padding: 5px;
+  color: var(--primary-color);
+}
+/* second JOKER pinned to the opposite corner and rotated, like a real card -
+   same scheme as card .index-flipped */
+.joker-text-flipped {
+  margin: auto 4px 5px auto;
+  transform: rotate(180deg);
+}

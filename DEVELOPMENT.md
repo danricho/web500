@@ -1,0 +1,243 @@
+# Development notes
+
+Implementation detail for people modifying the code. For what the game is, how to
+install and host it, and the rough architecture, see [README.md](README.md). Bot
+behaviour has its own document: [BOTS.md](BOTS.md). Planned work lives in the README's
+Roadmap section.
+
+## Running for development
+
+Requires Python 3.
+
+```bash
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+
+# dev server (Flask built-in)
+venv/bin/python main.py
+
+# or exactly how production runs it
+venv/bin/gunicorn -b :4030 -w 1 --threads 100 main:app
+```
+
+Open `http://localhost:4030`, pick a seat, and (for a solo test drive) visit
+`/dev/test` to seat three bots.
+
+> **Important:** the game lives in process memory, so gunicorn must run with **exactly
+> one worker** (`-w 1`). Multiple workers would each have their own, different game.
+> Concurrency comes from threads (`--threads 100`).
+
+Template, JS and CSS changes reach clients on a page refresh (auto-reload +
+cache-busted URLs); only `.py` changes need a server restart.
+
+## Dev endpoints & test mode
+
+Plain HTTP GET helpers. `dev/*` requires a logged-in session whose name is in
+`auth.json`'s `dev_users`; `api/*` requires any logged-in session. The dev-only
+section of the settings modal is the client-side front end for most of these:
+
+| Endpoint                   | Effect                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `/api/reinit`              | Re-initialise the game and clear the autosave (refused mid-deal). Any logged-in player, also via the settings modal.    |
+| `/dev/test`                | Toggle test mode: seats three bots and lets them act on their turn.                                                     |
+| `/dev/save` / `/dev/load`  | Write / restore the manual checkpoint (`data/checkpoint.json`).                                                         |
+| `/dev/cards`               | Card-appearance review page: the card back plus all 43 faces in a scrollable grid, cloned from the same proto card as the game client (`templates/_proto_card.j2.html`). |
+| `/dev/clearchk`            | Delete the manual checkpoint file.                                                                                      |
+| `/dev/skipdelays`          | Toggle skipping of all dramatic pauses (deal/trick delays).                                                             |
+| `/dev/uptime`              | JSON: version, process start time, uptime in seconds, and whether a restart command is configured.                      |
+| `/dev/restart`             | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves first; the game is restored on the way back up. |
+| `/api/client_trigger_push` | Force a full state push to all clients.                                                                                 |
+| `/api/last-game`           | JSON dump of games completed this process lifetime (in-memory).                                                         |
+
+There is no automated test suite. Verification is manual: run the server, enable test
+mode and skip-delays, and watch the coloured logs — every state transition, dialog and
+action is logged.
+
+## Server/client contract
+
+The server is authoritative; clients never compute game logic. A client:
+
+1. Connects via Socket.IO (polling transport) and receives the full game state.
+2. Emits actions — `seat_request`, `bid_submit`, `discard_submit`, `play_card`,
+   `joker_nominate`, `add_bots` — which `main.py` routes to the matching `gui_*` method
+   on the game object (`add_bots` instead queues `bots.seat_player_bots`, and requires
+   the requester to already be seated). A global `@socketio.on_error_default` handler
+   catches any exception a socket handler raises (flask-socketio would otherwise swallow
+   it silently), logs the traceback and toasts a SERVER ERROR to everyone.
+3. Receives the **entire game state** on every `game_state` push. There are no deltas.
+   A keep-alive job re-pushes state if nothing was sent for 10 seconds.
+4. May receive a `toast` event (`sio_toast(text, kind, seconds, audience, category,
+   logit)` beside `sio_push()`) — an occasional notice rendered as a top-right popup
+   stack, coloured by `kind`, with a bold all-caps `category` heading above the message
+   (one of SERVER ERROR / SERVER / GAME MANAGEMENT / PLAYERS, tinted to match the
+   `kind`). Deliberately a separate event, not part of the `game_state` push (the
+   keep-alive re-push would replay an embedded toast). `audience: "dev"` toasts are
+   filtered client-side on the dev flag — cosmetic only, nothing sensitive rides in a
+   toast; currently no call site uses it (every toast goes to everyone) but the plumbing
+   stays for future use. `logit=False` skips the server log line (used by the repeating
+   nudge so it can't spam the log). Current call sites: worker-job and socket-handler
+   error reporting, checkpoint save/load/clear, game reinit, service restart, test-mode
+   and skip-delays toggles, ADD BOTS, startup autosave-restore (deferred to the first
+   socket connect — nobody is listening at startup), and a focus-idle nudge
+   ("Are you there X?" via `check_focus_idle`, polled once a second, when a human
+   holds focus for 10s+, repeating every 10s until they act).
+
+Note: every client receives every player's hand. Hiding opponents' cards is purely a
+client-side rendering concern — don't build anything security-sensitive on top of this.
+
+## State machine mechanics
+
+The six states and their transitions are diagrammed in the README's
+[architecture section](README.md#the-game-state-machine). Key mechanics for anyone
+working on the code:
+
+- **All transitions go through `state_trans()`.** It inspects the current state, decides
+  whether the conditions to move on are met, and performs the side effects of the
+  transition. Don't move state anywhere else.
+- **Single-threaded mutation via a job queue.** Long-running work (`auto_deal`,
+  `auto_points`, `state_trans` itself) is never called directly — it is enqueued on
+  `schedule_t.jobqueue` and executed by the single `ThreadedSchedule` worker thread.
+  That one worker is what serialises all game mutations; keep it that way.
+- **Pacing goes through `self.delay()`**, not bare `sleep()`, so the `skip_delays` dev
+  flag can bypass every pause.
+- **`player_focus`** (0–3 or `None`) is the single "whose turn is it" pointer used across
+  bidding, discarding and play. `None` means nobody may act.
+- **Teams are seat parity** — seats 0+2 vs 1+3; `teams[i % 2]` maps player to team.
+- **Bidding endgame**: when only one active bidder remains, they get a single opportunity
+  to raise their own bid before the contract locks. This is tracked with
+  `bid.passed = "WINNER"` / `"WINNER_INCREASE_OPTION"` flags — game logic must key off
+  these flags, never off dialog text.
+- **Dialog text** shown to players is built exclusively in the `dlg_*` methods. Game
+  logic must never depend on dialog strings.
+- **Bid ordering is rank-based, following the points table.** `bid_rank()` (inside
+  `gui_bid`) orders bids by tricks-then-suit, with misère (suit 0, tricks 10) slotted
+  between 8 Spades (240 points) and 8 Clubs (260 points) — so outbidding a misère (250
+  points) takes 8 Clubs or higher, matching the bid values table. Misère is also
+  rejected outright unless the current high bid is a seven.
+- **Misère adds no states** — it reuses the same six-state flow with three twists,
+  all keyed off `trumps == 0`:
+  - At contract lock (S2→S3), the contractor's partner's seat index goes into
+    `self.sitting_out`. From then on they are skipped everywhere: turn rotation
+    (`next_seat()`), trick size (3 cards), hand-completion checks
+    (`hand_cards_status()`), and `legal_play_indices()` (returns `None` for them).
+    `auto_deal` clears `sitting_out` for the next hand.
+  - Play logic treats misère as No Trumps: `Deck.sort()` and the joker/bower handling
+    map `trumps 0 → 5`; there are no bowers, the joker is the only "trump", and it
+    **must** be played when its holder can't follow suit (unless it was pre-nominated
+    into a suit — see below).
+- **Joker leads in No Trumps / Misère need a suit nomination.** `gui_play()` intercepts
+  the lead: the joker goes to the table, `joker_nominating` is set, and everyone's
+  `legal_plays` is empty until the leader picks a suit (client shows a temporary top-right
+  panel; `joker_nominate` socket event → `gui_joker_nominate()`). The chosen suit becomes
+  `trick_suit` for the trick and is recorded in `suits_led` — a nomination must be a suit
+  not yet led this hand (tracked at every lead), which also makes the joker unleadable
+  once all four suits have been led, except to the last trick where no nomination is
+  needed (everyone's final card falls anyway).
+- **Joker pre-nomination (No Trumps / Misère).** A contractor holding the joker may
+  declare its suit before the first lead (`joker_prenom_open` window, opened at the
+  S3→S4 transition; same top-right panel and `joker_nominate` socket event, routed by
+  `gui_joker_nominate()`). Declaring is optional — leading any card closes the window.
+  Once declared (`joker_prenom`), the joker is the highest card of that suit for the
+  whole hand: it must follow that suit, leading it leads that suit (no lead-time
+  nomination), it wins any trick of its suit and wins nothing played off-suit — which
+  lets a misère contractor discard it. The misère forced-joker rule no longer applies
+  to a pre-nominated joker.
+  - The S4→S5 transition fires early if the contractor has won any trick
+    (checked in both `gui_play` and `state_trans`) — a failed misère never plays out
+    the remaining tricks. Scoring in `auto_points` is ±250 for the contracting team
+    and always 0 for the opponents, and it counts each side's actual won tricks
+    because the hand may have ended early.
+- **Game over**: a team at ±500 with scores unequal ends the game; the finished game is
+  appended to the module-level `games` list (in-memory only) and the machine
+  re-`__init__`s itself back to state 0.
+
+## Persistence
+
+Two JSON files live in `data/` (gitignored, created on demand), written atomically
+(temp file + `os.replace`):
+
+- **`autosave.json`** — written at every safe checkpoint: each state transition, the end
+  of scoring, after game-over re-init, and after every socket action. Loaded at startup,
+  so the live game survives restarts. `/api/reinit` deletes it.
+- **`checkpoint.json`** — manual dev slot (`/dev/save` / `/dev/load`).
+
+`restore_state()` rebuilds `Deck`/`Card`/`dotdict` objects in place, rewrites the
+autosave, then re-queues any pending automatic work: a game restored mid-DEALING
+re-deals; restored in AWARD POINTS it either runs scoring (if it never ran) or moves on.
+States driven by player input need nothing re-queued. A restore into AWARD KITTY also
+re-derives `trumps` and (for misère) `sitting_out` from the bids, since the S2→S3
+autosave fires before that setup runs. Newer fields (`sitting_out`, `suits_led`, the
+joker-nomination and pre-nomination pairs) are read tolerantly (`data.get(...)`). A missing/corrupt/
+wrong-version file logs the problem and leaves the fresh game untouched. Bump
+`SAVE_VERSION` when changing the state shape.
+
+## Card model
+
+Numeric encodings, mirrored by the client:
+
+- **Suits:** 0 = Misère, 1 = Spades, 2 = Clubs, 3 = Diamonds, 4 = Hearts, 5 = No Trumps.
+- **Ranks:** 3–14 = card faces (11 = Jack, 14 = Ace), **15 = Joker** (stored suit 5).
+- **Deck:** 43 cards — red suits 4–Ace, black suits 5–Ace, one joker.
+- The left bower (jack of the same-colour suit as trumps) counts as a trump for
+  following, leading and trick evaluation; `SUIT_LEFT_BOWER` holds the suit mapping.
+  Follow-suit legality lives in `allowed_to_play()`; `legal_play_indices()` wraps it and
+  is included in every state push.
+
+## Naming conventions
+
+All identifiers follow these rules. Fix non-compliant names when touching code; never
+rename save-file keys without bumping `SAVE_VERSION` (old autosaves are then refused).
+
+### Python (PEP 8)
+
+| Thing | Style | Example |
+| --- | --- | --- |
+| Modules | `snake_case.py` | `game_state.py` |
+| Classes | `PascalCase` | `GameStateMachine`, `PlayerBot` |
+| Functions & methods | `snake_case()` | `legal_play_indices()` |
+| Variables & parameters | `snake_case` | `trick_suit` |
+| Constants (module- or class-level, never reassigned) | `UPPER_SNAKE` | `SAVE_VERSION`, `FOCUS_NUDGE_S` |
+| Module-level mutable singletons | `snake_case` (not constants) | `game`, `socketio`, `schedule_t` |
+| Internal helpers / private attributes | leading underscore | `_det01()`, `_focus_since` |
+| Throwaway/unused values | bare `_` | `for _ in range(4)` |
+
+Never shadow builtins or module names in parameters or locals (`str`, `time`, `id`).
+
+**Documented exception:** the `dotdict` class stays lowercase — deliberate, it mimics
+the `dict` builtin it subclasses.
+
+**Domain prefixes (codified existing practice):** `gui_*` client-action handlers,
+`auto_*` queued automatic phases, `dlg_*` dialog builders, `sio_*` socket emitters,
+`handle_*` Socket.IO event handlers in `main.py`, `decide_*` bot decision methods,
+`dev_random_*` dev-only bot code.
+
+### JavaScript
+
+| Thing | Style | Example |
+| --- | --- | --- |
+| Functions | `camelCase()` | `updateComponentVisibility()` |
+| Local variables | `camelCase` | `vacantSeats`, `uptimeTimer` |
+| jQuery-wrapped objects | `$` prefix + camelCase | `$toast` |
+| Top-level constants | `UPPER_SNAKE` | `CONFIG`, `SUIT_DISP`, `SESSION_IS_DEV` |
+| Server-pushed data properties | `snake_case`, never renamed client-side (they mirror Python attributes 1:1) | `data.legal_plays` |
+
+The snake_case-property rule is the boundary: `data.joker_prenom` stays as-is when
+accessing server state, but the moment it lands in a local variable the local is
+camelCase (`var jokerPrenom = data.joker_prenom`). `var` vs `let`/`const` is a
+modernisation question, not a naming one — out of scope here.
+
+### HTML / CSS
+
+| Thing | Style | Example |
+| --- | --- | --- |
+| Element ids | `kebab-case` | `#toast-stack`, `#joker-pane` |
+| CSS classes | `kebab-case` | `.modal-btn-row` |
+| data-attributes | `kebab-case` | `data-seat-index` |
+
+### JSON / config / save files / wire protocol
+
+| Thing | Style | Example |
+| --- | --- | --- |
+| JSON keys (auth.json, autosave/checkpoint, state pushes) | `snake_case`, mirroring the Python attribute exactly | `player_focus` |
+| Socket.IO event names | `snake_case` | `seat_request` |
+| localStorage keys | `web500_` prefix + snake_case | `web500_perfect_cards` |
