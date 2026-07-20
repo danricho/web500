@@ -253,6 +253,97 @@ carries the diagnostics and fix shapes.
    spelling already works via the case-insensitive name match. Also exclude `B|`/`D|`
    prefixed names so nobody logs in as a bot.
 
+1. **SVG-based card faces** — replace the HTML/CSS-built card faces with one
+   parameterised SVG template (back, front, joker inside; settable index text, four
+   suit options, big centre display, optional picture-card centres). Performance
+   question already answered: not a factor.
+
+   _Detail (medium; design settled, drawing work is the bulk):_ today a card is the
+   shared proto markup (`templates/_proto_card.j2.html`, cloned by both the client
+   and `/dev/cards`) filled by `updateArrayCards` (suit glyphs from `SUIT_SVG`
+   paths, rank text) and styled by `cards.css` — which carries real fragility (the
+   iOS Safari display-resolution quirk documented above `updateArrayCards`, the
+   `rank-10` letter-spacing squeeze, the joker grid-stack). **Performance:** cloning
+   inline SVG ≈ cloning HTML — same DOM machinery, same paint pipeline, and at this
+   scale (~60 card elements worst case, 44 on `/dev/cards`) unmeasurable; with
+   `<use>` refs instances get _cheaper_ than the current HTML (shared art lives once
+   in a hidden `<defs>` sprite, shadow-tree content isn't duplicated per clone).
+   **What it buys:** one `viewBox` scales the whole card as a unit (kills the
+   `rank-10` squeeze, px font tuning, stays crisp under the phone `scale()`), and
+   SVG internal layout doesn't depend on CSS display resolution (likely kills the
+   iOS quirk). **Costs:** text positioning is manual (`x`/`y`/`text-anchor` —
+   layout tweaks become coordinate edits), and picture-card centres are new drawing
+   work (the CSS deck shows big rank text for J/Q/K). **Framework shape** — defs
+   once, then per-card instances the JS fills exactly like today (class toggles +
+   `.text()` + one `href` swap instead of an innerHTML glyph fill):
+
+   ```html
+   <!-- ONCE, hidden: shared art. Fills use currentColor so the card's
+        suit-red/suit-black class colours everything via CSS `color:`.
+        (CSS can't reach inside <use> shadow trees - currentColor/custom
+        properties are the only styling that pierces them.) -->
+   <svg width="0" height="0" style="position:absolute">
+     <defs>
+       <path id="suit-spade" fill="currentColor" d="..." />
+       <path id="suit-club" fill="currentColor" d="..." />
+       <path id="suit-diamond" fill="currentColor" d="..." />
+       <path id="suit-heart" fill="currentColor" d="..." />
+       <g id="pic-jack">...</g> <g id="pic-queen">...</g> <g id="pic-king">...</g>
+       <g id="joker-art">...</g>
+       <pattern id="back-pattern">...</pattern>
+     </defs>
+   </svg>
+
+   <!-- PER CARD (the proto to clone), 120x180 like the CSS card -->
+   <svg class="card" viewBox="0 0 120 180">
+     <rect class="card-bg" width="120" height="180" rx="6" />
+     <g class="front">
+       <g class="index">
+         <text class="rank" x="14" y="26" text-anchor="middle">Q</text>
+         <use class="suit" href="#suit-heart" x="6" y="32" width="16" height="16" />
+       </g>
+       <!-- second index: same content, rotated about the card centre -->
+       <g class="index index-flipped" transform="rotate(180 60 90)">
+         <text class="rank" x="14" y="26" text-anchor="middle">Q</text>
+         <use class="suit" href="#suit-heart" x="6" y="32" width="16" height="16" />
+       </g>
+       <g class="big">
+         <text class="rank" x="60" y="108" text-anchor="middle">Q</text>
+         <use class="picture" href="#pic-queen" style="display:none" />
+       </g>
+       <g class="joker" style="display:none"><use href="#joker-art" /></g>
+     </g>
+     <g class="back" style="display:none">
+       <rect width="120" height="180" fill="url(#back-pattern)" />
+     </g>
+   </svg>
+   ```
+
+   `updateArrayCards` changes are mechanical and stay idempotent: `is-joker` /
+   `suit-red` / `suit-black` class toggles unchanged, rank via
+   `.find("text.rank").text(...)`, suit via
+   `.find("use.suit").attr("href", "#suit-…")` (replacing the `SUIT_SVG` innerHTML
+   fill), variant groups shown/hidden by class. jQuery `.clone()` of existing
+   inline SVG nodes works fine (only _creating_ SVG from strings needs namespace
+   care, which `appendSvg` already handles). Constraint: assets must be vendored
+   (no CDN), matching the existing front-end policy — so CC0/public-domain art
+   only (LGPL decks like Bellot's SVG-cards and Aguilar's vector-cards are out).
+   Candidate court-card sources, all full-card SVGs needing a one-off extraction
+   (strip border/indexes/pips, keep the centre group as `<g id="pic-…">`):
+   [Dmitry Fomin's English pattern cards](https://commons.wikimedia.org/wiki/Category:SVG_English_pattern_playing_cards)
+   (Wikimedia Commons, CC0, per-card files, clean flat vectors — easiest to gut),
+   [RevK's SVG playing cards](https://www.me.uk/cards/) (CC0, Goodall & Son
+   19th-century court designs, [generator source](https://github.com/revk/SVG-playing-cards) —
+   best traditional look), and
+   [Byron Knoll's vector cards](https://github.com/notpeter/Vector-Playing-Cards)
+   (public domain, but potrace-vectorised scans — heavy paths, third choice).
+   Note the courts are per rank × suit (12 unique centres, not 3) unless
+   deliberately flattened to one generic J/Q/K each, and traditional court art is
+   multi-colour — it keeps its own fills in `<defs>` rather than riding the
+   `currentColor` red/black scheme. Validation is easy — `/dev/cards` shows all
+   43 faces + back at once. Touches `_proto_card.j2.html`, `cards.css`,
+   `updateArrayCards` and `/dev/cards`.
+
 1. **State-change refactor** — cheap but zero player value; half stale already. Finish
    cheaply or close.
 
