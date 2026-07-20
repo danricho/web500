@@ -1,9 +1,9 @@
 # Development notes
 
 Implementation detail for people modifying the code. For what the game is, how to
-install and host it, and the rough architecture, see [README.md](README.md). Bot
-behaviour has its own document: [BOTS.md](BOTS.md). Planned work lives in the README's
-Roadmap section.
+install and host it, and the rough architecture, see [README.md](../README.md). Bot
+behaviour has its own document: [BOTS.md](BOTS.md). Planned work lives in
+[ROADMAP.md](ROADMAP.md).
 
 ## Running for development
 
@@ -145,12 +145,12 @@ The server is authoritative; clients never compute game logic. A client:
 Note: every client at a table receives every player's hand *at that table*. Hiding
 opponents' cards is purely a client-side rendering concern — don't build anything
 security-sensitive on top of this. (A genuinely hand-hiding "observer" viewer mode is
-an idea on the README Roadmap, not yet designed or built.)
+an idea in [ROADMAP.md](ROADMAP.md), not yet designed or built.)
 
 ## State machine mechanics
 
 The six states and their transitions are diagrammed in the README's
-[architecture section](README.md#the-game-state-machine). Key mechanics for anyone
+[architecture section](../README.md#the-game-state-machine). Key mechanics for anyone
 working on the code:
 
 - **All transitions go through `state_trans()`.** It inspects the current state, decides
