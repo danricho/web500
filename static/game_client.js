@@ -844,6 +844,27 @@ function processGameStateData(data) {
       }
       playedCardsTableCount = tableCount;
       $("#played-cards").updateArrayCards(tableCards);
+      // STACK THE TABLE CARDS IN PLAY ORDER (LATER CARDS PAINT ON TOP): THE DOM
+      // ORDER IS FIXED SEAT ORDER, SO WITHOUT THIS A LATER PLAY CAN RENDER UNDER
+      // AN EARLIER ONE. current_trick IS THE PLAY-ORDER RECORD; DURING THE
+      // WON-TRICK LINGER IT HAS ALREADY BEEN SWEPT TO trick_history, SO FALL BACK
+      // TO THE LAST COMPLETED TRICK WHILE CARDS ARE STILL ON THE TABLE.
+      var trickOrder = data.current_trick || [];
+      var trickHistory = data.trick_history || [];
+      if (trickOrder.length === 0 && tableCount > 0 && trickHistory.length > 0) {
+        trickOrder = trickHistory[trickHistory.length - 1].cards;
+      }
+      var playedCardIds = {};
+      playedCardIds[idxMe] = "#p-me-played";
+      playedCardIds[idxNext] = "#p-next-played";
+      playedCardIds[idxPartner] = "#p-partner-played";
+      playedCardIds[idxPrevious] = "#p-previous-played";
+      $("#played-cards card").removeClass(
+        "play-order-1 play-order-2 play-order-3 play-order-4",
+      );
+      trickOrder.forEach(function (play, order) {
+        $(playedCardIds[play.seat]).addClass("play-order-" + (order + 1));
+      });
     }
 
     // HIGHEST BID SO FAR... ranked the same way the server's gui_bid ranks bids:

@@ -139,6 +139,21 @@ body {
 .g-stack-l {
   grid-area: 1 / 1;
 }
+/* TABLE CARDS STACK IN PLAY ORDER - classes set per push in game_client.js from
+   current_trick. The cards are grid items of #played-cards (.g-stack), so z-index
+   applies without positioning; values sit below the ladder above. */
+.play-order-1 {
+  z-index: 1;
+}
+.play-order-2 {
+  z-index: 2;
+}
+.play-order-3 {
+  z-index: 3;
+}
+.play-order-4 {
+  z-index: 4;
+}
 
 .enable-mouse {
   pointer-events: auto;
