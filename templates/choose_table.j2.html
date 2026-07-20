@@ -4,16 +4,31 @@
     <meta charset="utf-8" />
     <title>Web500 - Choose a Table</title>
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Roboto+Slab:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/vendor/css/normalize.css" />
     <link rel="stylesheet" href="/static/vendor/css/skeleton.css" />
-    <link rel="icon" type="image/png" href="/static/images/favicon-96x96.png" sizes="96x96" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/static/images/favicon-96x96.png"
+      sizes="96x96"
+    />
     <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg" />
     <link rel="shortcut icon" href="/static/images/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/images/apple-touch-icon.png"
+    />
     <meta name="apple-mobile-web-app-title" content="Web500" />
     <link rel="manifest" href="/static/images/site.webmanifest" />
     <link href="/static/layout.css?{{timeNow}}" rel="stylesheet" />
@@ -56,16 +71,28 @@
 
       <div class="pos-abs top-left text-center height-100 width-100 z-lobby">
         <div class="pos-rel top-left height-100 width-100">
-          <div class="pos-abs middle-center light-on-darker border-rounded enable-mouse modal-box modal-box-border">
+          <div
+            class="pos-abs middle-center light-on-darker border-rounded enable-mouse modal-box modal-box-border"
+          >
             <div>
-              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 100 73.54" style="width: 80px" fill="currentColor">
+              <svg
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 100 73.54"
+                style="width: 80px"
+                fill="currentColor"
+              >
                 <path
                   d="M99.7,0.02H82.04c-0.37,0-0.71,0.22-0.86,0.56l-14.71,34.1c-0.19,0.44-0.79,0.52-1.08,0.13L50.3,14.92
                 c-0.15-0.2-0.45-0.2-0.6,0L34.61,34.81c-0.29,0.38-0.89,0.31-1.08-0.13L18.82,0.58c-0.15-0.34-0.48-0.56-0.86-0.56H0.3
                 c-0.14,0-0.24,0.15-0.18,0.28l31.15,72.86c0.1,0.23,0.33,0.39,0.58,0.39h8.71c0.25,0,0.48-0.12,0.63-0.32l5.17-7.11
                 c0,0-6.09,2.19-8.97-2.26c-3.05-4.71,0.63-8.79,0.63-8.79l11.42-14.27c0.29-0.36,0.83-0.36,1.12,0l11.42,14.27
                 c0,0,3.68,4.08,0.63,8.79c-2.88,4.45-8.97,2.26-8.97,2.26l5.17,7.11c0.15,0.2,0.38,0.32,0.63,0.32h8.71c0.25,0,0.48-0.15,0.58-0.39
-                L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z" />
+                L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z"
+                />
               </svg>
               <div style="font-size: 4rem; font-weight: bold">
                 Web
@@ -93,7 +120,9 @@
                 <a href="/logout">logout</a>
                 <br />
                 {{ version }} -
-                <a href="https://github.com/danricho/web500" target="_blank">GitHub</a>
+                <a href="https://github.com/danricho/web500" target="_blank"
+                  >GitHub</a
+                >
               </small>
             </div>
           </div>
@@ -135,7 +164,7 @@
         var container = document.getElementById("table-list");
         if (list.length === 0) {
           container.innerHTML =
-            '<p class="italic">No tables yet - create the first one below.</p>';
+            '<p class="italic" style="text-align: center;">No tables yet - create the first one below.</p>';
           return;
         }
         var html = "";
