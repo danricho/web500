@@ -105,8 +105,69 @@ function displayName(text) {
 var forceScoreboardDisplay = false;
 var lastGameDialog = null; // raw server dialog string (compared before the B| icon substitution)
 var playedCardsTableCount = 0; // tracks table card count so jitter re-rolls on trick sweep
+var myHandFanSlots = null; // my hand's rendered slot layout during PLAY HAND: card objects with nulls where played cards left gaps (null = no gap layout active)
 var perfectCards =
   localStorage.getItem(CONFIG.STORAGE_KEY_PERFECT_CARDS) === "true"; // "Perfect" = no card jitter; default "Natural"
+
+// LAYS OUT MY HAND FOR RENDERING SO PLAYED CARDS LEAVE GAPS IN THE FAN INSTEAD OF
+// THE REMAINING CARDS SHUFFLING LEFT (updateArrayCards TREATS null AS "HIDE BUT
+// KEEP THE SLOT", AND :nth-child FAN ANGLES COUNT HIDDEN CARDS). GAPS ONLY DURING
+// PLAY HAND - THE DEAL, KITTY PICKUP/DISCARD AND THE TRUMP-LOCK RE-SORT ALL
+// LEGITIMATELY RESHAPE THE HAND. THE SERVER HAND STAYS COMPACTED; ITS ORDER IS
+// PRESERVED WHEN CARDS ARE PLAYED, SO THE NON-GAP SLOTS IN ORDER MUST EQUAL THE
+// SERVER HAND - ANY MISMATCH (RECONNECT/RESTORE MID-HAND, A FRESH HAND) RESETS
+// TO THE FLAT LAYOUT.
+function myHandFanLayout(handCards) {
+  if (gameState != "PLAY HAND") {
+    myHandFanSlots = null;
+    return handCards;
+  }
+  var cardKey = function (c) {
+    return c.suit + ":" + c.rank;
+  };
+  var inHand = {};
+  handCards.forEach(function (c) {
+    inHand[cardKey(c)] = true;
+  });
+  var slots = null;
+  if (myHandFanSlots !== null) {
+    slots = myHandFanSlots.map(function (c) {
+      return c !== null && inHand[cardKey(c)] ? c : null;
+    });
+    var kept = slots.filter(function (c) {
+      return c !== null;
+    });
+    if (
+      kept.length !== handCards.length ||
+      kept.some(function (c, i) {
+        return cardKey(c) !== cardKey(handCards[i]);
+      })
+    ) {
+      slots = null;
+    }
+  }
+  if (slots === null) {
+    slots = handCards.slice();
+  }
+  myHandFanSlots = slots;
+  return slots;
+}
+// MAPS A RENDERED SLOT INDEX IN MY HAND TO THE SERVER'S COMPACTED HAND INDEX
+// (THE GAPS IN myHandFanSlots DON'T EXIST SERVER-SIDE). IDENTITY WHEN NO GAP
+// LAYOUT IS ACTIVE. EVERY legal_plays LOOKUP AND play_card EMIT MUST GO
+// THROUGH THIS.
+function myHandServerIndex(slotIdx) {
+  if (myHandFanSlots === null) {
+    return slotIdx;
+  }
+  var serverIdx = 0;
+  for (var i = 0; i < slotIdx && i < myHandFanSlots.length; i++) {
+    if (myHandFanSlots[i] !== null) {
+      serverIdx++;
+    }
+  }
+  return serverIdx;
+}
 
 if (username != "") {
   $(document).prop("title", username + " : Web500");
@@ -731,9 +792,16 @@ function processGameStateData(data) {
         $(seat + " .p-info").removeClass("focus");
       }
 
-      // UPDATE PLAYER HAND
+      // UPDATE PLAYER HAND (MINE VIA THE GAP-KEEPING FAN LAYOUT)
       if (playerData.hand === null) {
         $(seat + " .p-hand card").hide();
+        if (index == idxMe) {
+          myHandFanSlots = null;
+        }
+      } else if (index == idxMe) {
+        $(seat + " .p-hand").updateArrayCards(
+          myHandFanLayout(playerData.hand.cards),
+        );
       } else {
         $(seat + " .p-hand").updateArrayCards(playerData.hand.cards);
       }
@@ -745,8 +813,11 @@ function processGameStateData(data) {
           gameState == "PLAY HAND" &&
           data.player_focus == idxMe &&
           legalPlays !== null;
+        // cardIdx IS THE RENDERED SLOT; legal_plays INDEXES THE COMPACTED SERVER
+        // HAND, SO TRANSLATE (GAP SLOTS GET A NEIGHBOUR'S VERDICT - HARMLESS,
+        // THEY'RE HIDDEN)
         $("#p-me .p-hand card").each(function (cardIdx) {
-          if (darken && !legalPlays.includes(cardIdx)) {
+          if (darken && !legalPlays.includes(myHandServerIndex(cardIdx))) {
             $(this).find(".joker, .big, .index").addClass("quarter-opac");
           } else {
             $(this).find(".joker, .big, .index").removeClass("quarter-opac");
@@ -1460,7 +1531,9 @@ $(document).ready(function () {
       }
     } else if (gameState == "PLAY HAND") {
       socket.emit("play_card", {
-        card: $("#p-me .p-hand card").index($(this)),
+        // RENDERED SLOT -> COMPACTED SERVER HAND INDEX (FAN GAPS DON'T EXIST
+        // SERVER-SIDE)
+        card: myHandServerIndex($("#p-me .p-hand card").index($(this))),
         username: username,
       });
     }
