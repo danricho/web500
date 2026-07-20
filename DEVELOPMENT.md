@@ -20,34 +20,84 @@ venv/bin/python main.py
 venv/bin/gunicorn -b :4030 -w 1 --threads 100 main:app
 ```
 
-Open `http://localhost:4030`, pick a seat, and (for a solo test drive) visit
-`/dev/test` to seat three bots.
+Open `http://localhost:4030`, log in, pick or create a table, take a seat, and (for a
+solo test drive) visit `/dev/test` to seat three bots at that table.
 
-> **Important:** the game lives in process memory, so gunicorn must run with **exactly
-> one worker** (`-w 1`). Multiple workers would each have their own, different game.
-> Concurrency comes from threads (`--threads 100`).
+> **Important:** every table lives in process memory, so gunicorn must run with
+> **exactly one worker** (`-w 1`). Multiple workers would each have their own,
+> different set of tables. Concurrency comes from threads (`--threads 100`).
 
 Template, JS and CSS changes reach clients on a page refresh (auto-reload +
 cache-busted URLs); only `.py` changes need a server restart.
+
+## Multi-table
+
+Any number of tables run concurrently in one process. A "table" is a `GameStateMachine`
+instance whose `name` (e.g. `"TABLE 1"`) is simultaneously its registry key
+(`game_state.tables: dict[str, GameStateMachine]`), its Socket.IO room name, and its
+`data/tables/<name>/` save-directory name — deliberately no separate id. Names are
+self-derived: `_next_table_name()` scans the registry for the highest existing number
+and picks the next one (a reaped table's number is never reused).
+
+Flow: login (shared passcode, table-agnostic) → a small server-rendered table picker
+(`templates/choose_table.j2.html` — lists tables and occupants via `/api/tables`, polled
+every 3s; create or join) → the single-page game client for the chosen table.
+`session['table_id']` records the choice, but a connected socket is **pinned to the
+table its page was rendered for**, not the live session: `TABLE_ID` is baked into the
+page and sent on the `io({query: {table_id}})` handshake, re-sent unchanged on every
+reconnect (this app is polling-transport-only with routine reconnect churn, not just
+full page loads). The `connect` handler reads it from there and calls `join_room()`
+before the first push. Socket **action** handlers (`seat_request` etc.) resolve their
+target table from the socket's own joined room (`rooms()`) rather than the session too
+— the same reasoning one layer up: a stale tab must never have its pushes pinned to one
+table while its clicks silently act on another.
+
+A full table can't be joined by a newcomer; someone already seated there can still
+rejoin. Tables with no seated player for `TABLE_EMPTY_REAP_S` (300s) are removed
+automatically via `game_state.delete_table()`, which also deletes the save directory;
+a removed table's lingering spectator (if any) gets a dedicated `table_closed` socket
+event, not a toast, since the room won't exist to push to afterwards — the client
+redirects itself to `/`. `delete_table()` is shared with the dev-only
+`/dev/delete_table` route (manual removal of any table, regardless of state — see "Dev
+endpoints" below).
+
+The single shared `ThreadedSchedule` worker (see "State machine mechanics" below)
+serialises mutations across **every** table, deliberately not split per-table — simple
+starting point, revisit only if one table's queued work ever visibly delays another's.
 
 ## Dev endpoints & test mode
 
 Plain HTTP GET helpers. `dev/*` requires a logged-in session whose name is in
 `auth.json`'s `dev_users`; `api/*` requires any logged-in session. The dev-only
-section of the settings modal is the client-side front end for most of these:
+section of the settings modal is the client-side front end for most of these, including
+a table selector (`#dev-table-select`) that scopes the `?table=`-aware ones below to
+any table, not just the dev's own (it only scopes the admin action — it doesn't move
+the dev's own connected view to that table). The option list is server-rendered at page
+load, then refreshed by `refreshDevTableSelect()` (`/api/tables`) every time the
+settings modal opens, same "re-ask on open" pattern as the uptime display — otherwise a
+table created or deleted after page load would leave it stale. For the same reason, the
+TEST MODE / SKIP DELAYS button labels read from that same `/api/tables` data for
+whichever table is selected (falling back to the live `game_state` push only when the
+selected table is this browser's own) rather than always showing this table's state:
 
 | Endpoint                   | Effect                                                                                                                  |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `/api/reinit`              | Re-initialise the game and clear the autosave (refused mid-deal). Any logged-in player, also via the settings modal.    |
-| `/dev/test`                | Toggle test mode: seats three bots and lets them act on their turn.                                                     |
-| `/dev/save` / `/dev/load`  | Write / restore the manual checkpoint (`data/checkpoint.json`).                                                         |
-| `/dev/cards`               | Card-appearance review page: the card back plus all 43 faces in a scrollable grid, cloned from the same proto card as the game client (`templates/_proto_card.j2.html`). |
-| `/dev/clearchk`            | Delete the manual checkpoint file.                                                                                      |
-| `/dev/skipdelays`          | Toggle skipping of all dramatic pauses (deal/trick delays).                                                             |
-| `/dev/uptime`              | JSON: version, process start time, uptime in seconds, and whether a restart command is configured.                      |
-| `/dev/restart`             | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves first; the game is restored on the way back up. |
-| `/api/client_trigger_push` | Force a full state push to all clients.                                                                                 |
-| `/api/last-game`           | JSON dump of games completed this process lifetime (in-memory).                                                         |
+| `/api/tables`              | JSON list of every table: name, state, seated players, test_mode/skip_delays, and (personalised to the caller) whether it's full / they're already seated there. |
+| `/api/select_table`        | Join a table (`?id=<name>`). 403s if full and the caller isn't already seated there.                                    |
+| `/api/create_table`        | Create a fresh table and select it, in one round trip.                                                                  |
+| `/api/change_table`        | Back to the table picker. Only meaningful while WAITING FOR PLAYERS (properly vacates the seat then); mid-hand it's unreachable through the UI. |
+| `/api/reinit`              | Re-initialise the **caller's own table** and clear its autosave (refused mid-deal). Any logged-in non-dev player, via the settings modal. Devs get `/dev/reinit` instead. |
+| `/dev/reinit`              | Dev-only: re-initialise any table, chosen via `?table=`/`#dev-table-select` (falls back to the dev's own table).        |
+| `/dev/delete_table`        | Dev-only: permanently delete any table (`?table=`-aware) — deregisters it, deletes its save directory, tells any connected client via `table_closed`. Not gated on state — works mid-hand too. |
+| `/dev/test`                | Toggle test mode on the target table (`?table=`-aware): seats three bots and lets them act on their turn.               |
+| `/dev/save` / `/dev/load`  | Write / restore the target table's manual checkpoint (`?table=`-aware).                                                 |
+| `/dev/cards`               | Card-appearance review page: the card back plus all 43 faces in a scrollable grid, cloned from the same proto card as the game client (`templates/_proto_card.j2.html`). Process-global, no table involved. |
+| `/dev/clearchk`            | Delete the target table's manual checkpoint file (`?table=`-aware).                                                     |
+| `/dev/skipdelays`          | Toggle skipping of all dramatic pauses on the target table (`?table=`-aware).                                           |
+| `/dev/uptime`              | JSON: version, process start time, uptime in seconds, and whether a restart command is configured. Process-global.      |
+| `/dev/restart`             | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves every table first; each is restored on the way back up. Process-global. |
+| `/api/client_trigger_push` | Force a full state push to the caller's own table only.                                                                 |
+| `/api/last-game`           | JSON dump of games completed this process lifetime (in-memory), across every table.                                    |
 
 There is no automated test suite. Verification is manual: run the server, enable test
 mode and skip-delays, and watch the coloured logs — every state transition, dialog and
@@ -57,33 +107,45 @@ action is logged.
 
 The server is authoritative; clients never compute game logic. A client:
 
-1. Connects via Socket.IO (polling transport) and receives the full game state.
+1. Connects via Socket.IO (polling transport, `table_id` on the query string — see
+   "Multi-table" above) and receives that table's full state.
 2. Emits actions — `seat_request`, `bid_submit`, `discard_submit`, `play_card`,
-   `joker_nominate`, `add_bots` — which `main.py` routes to the matching `gui_*` method
-   on the game object (`add_bots` instead queues `bots.seat_player_bots`, and requires
-   the requester to already be seated). A global `@socketio.on_error_default` handler
-   catches any exception a socket handler raises (flask-socketio would otherwise swallow
-   it silently), logs the traceback and toasts a SERVER ERROR to everyone.
-3. Receives the **entire game state** on every `game_state` push. There are no deltas.
-   A keep-alive job re-pushes state if nothing was sent for 10 seconds.
+   `joker_nominate`, `add_bots` — which `main.py` resolves to a target table (via the
+   socket's own joined room, never the live session — see "Multi-table") and routes to
+   the matching `gui_*` method on it (`add_bots` instead queues
+   `bots.seat_player_bots`, and requires the requester to already be seated). A global
+   `@socketio.on_error_default` handler catches any exception a socket handler raises
+   (flask-socketio would otherwise swallow it silently), logs the traceback and toasts
+   a SERVER ERROR — unscoped (every table), since the failure may have happened before
+   any table could even be resolved.
+3. Receives the **entire game state** on every `game_state` push, room-scoped to that
+   table. There are no deltas. A keep-alive job (per table) re-pushes state if nothing
+   was sent for 10 seconds.
 4. May receive a `toast` event (`sio_toast(text, kind, seconds, audience, category,
-   logit)` beside `sio_push()`) — an occasional notice rendered as a top-right popup
-   stack, coloured by `kind`, with a bold all-caps `category` heading above the message
-   (one of SERVER ERROR / SERVER / GAME MANAGEMENT / PLAYERS, tinted to match the
-   `kind`). Deliberately a separate event, not part of the `game_state` push (the
-   keep-alive re-push would replay an embedded toast). `audience: "dev"` toasts are
-   filtered client-side on the dev flag — cosmetic only, nothing sensitive rides in a
-   toast; currently no call site uses it (every toast goes to everyone) but the plumbing
-   stays for future use. `logit=False` skips the server log line (used by the repeating
-   nudge so it can't spam the log). Current call sites: worker-job and socket-handler
-   error reporting, checkpoint save/load/clear, game reinit, service restart, test-mode
-   and skip-delays toggles, ADD BOTS, startup autosave-restore (deferred to the first
-   socket connect — nobody is listening at startup), and a focus-idle nudge
-   ("Are you there X?" via `check_focus_idle`, polled once a second, when a human
-   holds focus for 10s+, repeating every 10s until they act).
+   logit)`, a `GameStateMachine` method beside `sio_push()`, room-scoped to that table)
+   — an occasional notice rendered as a top-right popup stack, coloured by `kind`, with
+   a bold all-caps `category` heading above the message (one of SERVER ERROR / SERVER /
+   GAME MANAGEMENT / PLAYERS, tinted to match the `kind`). Deliberately a separate
+   event, not part of the `game_state` push (the keep-alive re-push would replay an
+   embedded toast). `audience: "dev"` toasts are filtered client-side on the dev flag —
+   cosmetic only, nothing sensitive rides in a toast; currently no call site uses it
+   (every toast goes to everyone at that table) but the plumbing stays for future use.
+   `logit=False` skips the server log line (used by the repeating nudge so it can't
+   spam the log). Table-scoped call sites: checkpoint save/load/clear, table reinit,
+   test-mode and skip-delays toggles, ADD BOTS, startup autosave-restore (deferred to
+   the first socket connect — nobody is listening at startup), and a focus-idle nudge
+   ("Are you there X?" via `check_focus_idle`, polled once a second, when a human holds
+   focus for 10s+, repeating every 10s until they act). **Unscoped** (called directly
+   on the `socketio` instance, not through any one table): worker-job and
+   socket-handler error reporting, and service restart (affects every table at once).
+5. May receive a `table_closed` event if its table was removed (empty-table reaping —
+   see "Multi-table") — the client redirects itself to `/`, landing back on the table
+   picker, since the room won't receive any further pushes.
 
-Note: every client receives every player's hand. Hiding opponents' cards is purely a
-client-side rendering concern — don't build anything security-sensitive on top of this.
+Note: every client at a table receives every player's hand *at that table*. Hiding
+opponents' cards is purely a client-side rendering concern — don't build anything
+security-sensitive on top of this. (A genuinely hand-hiding "observer" viewer mode is
+an idea on the README Roadmap, not yet designed or built.)
 
 ## State machine mechanics
 
@@ -153,13 +215,22 @@ working on the code:
 
 ## Persistence
 
-Two JSON files live in `data/` (gitignored, created on demand), written atomically
-(temp file + `os.replace`):
+Two JSON files **per table**, under `data/tables/<name>/` (gitignored, created on
+demand — e.g. `data/tables/TABLE 1/autosave.json`), written atomically (temp file +
+`os.replace`). `self.autosave_path`/`self.checkpoint_path` are set on each table by the
+registry (`create_table()`/`load_tables_from_disk()`) as plain post-construction
+attributes, not constructor params — same pattern as `self.socketio` — and excluded
+from `to_dict()` (they're a deployment detail, not game data). A one-time boot migration
+moves a legacy flat `data/autosave.json`/`checkpoint.json` into `data/tables/TABLE 1/`
+if the new per-table layout doesn't exist yet, so an existing single-table deployment
+keeps its live game across the upgrade.
 
 - **`autosave.json`** — written at every safe checkpoint: each state transition, the end
   of scoring, after game-over re-init, and after every socket action. Loaded at startup,
-  so the live game survives restarts. `/api/reinit` deletes it.
-- **`checkpoint.json`** — manual dev slot (`/dev/save` / `/dev/load`).
+  so every table survives restarts. `/api/reinit` (own table) / `/dev/reinit` (any
+  table) deletes it.
+- **`checkpoint.json`** — manual dev slot (`/dev/save` / `/dev/load`, both
+  `?table=`-aware for devs).
 
 `restore_state()` rebuilds `Deck`/`Card`/`dotdict` objects in place, rewrites the
 autosave, then re-queues any pending automatic work: a game restored mid-DEALING
@@ -169,7 +240,11 @@ re-derives `trumps` and (for misère) `sitting_out` from the bids, since the S2�
 autosave fires before that setup runs. Newer fields (`sitting_out`, `suits_led`, the
 joker-nomination and pre-nomination pairs) are read tolerantly (`data.get(...)`). A missing/corrupt/
 wrong-version file logs the problem and leaves the fresh game untouched. Bump
-`SAVE_VERSION` when changing the state shape.
+`SAVE_VERSION` when changing the state shape (the multi-table persistence-layout change
+itself didn't need this — only the file *location* moved, not the shape). Note
+`restore_state()` deliberately never restores `self.name` from the save file's own
+`data["name"]` — a table's name is set once by the registry at construction (it doubles
+as the room/directory name) and must never drift from a restore.
 
 ## Card model
 

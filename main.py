@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, redirect, session
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room, rooms
 import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceback
 
 # TO RUN VIA GUNICORN - EXACTLY ONE WORKER, THE GAME LIVES IN THIS PROCESS'S MEMORY:
@@ -14,11 +14,10 @@ base_path = os.path.dirname(sys.argv[0]) +"/"
 RESTART_COMMAND = "sudo systemctl restart web-500-web-server.service"
 RESTART_DELAY_S = 0.5 # LET THE HTTP RESPONSE FLUSH BEFORE THE PROCESS IS KILLED
 
-VERSION = "v.2026.07.19.1" # version definition 
+VERSION = "v.2026.07.20.1" # version definition 
                 # SINGLE SOURCE OF TRUTH - SHOWN ON THE CLIENT (MODAL CREDITS), LOGGED
                 # AT STARTUP AND SERVED BY /dev/uptime. BUMP ON RELEASE.
 PORT = 4030 # FLASK DEV SERVER ONLY - GUNICORN BINDS ITSELF (-b :4030 IN THE UNIT/README)
-GAME_NAME = "W500.G1" # THE SINGLE IN-MEMORY GAME'S NAME (LOG PREFIX + SAVE FILES)
 BOTS_ENABLED = True # MASTER TOGGLE FOR THE LOBBY ADD BOTS BUTTON (SERVER-ENFORCED)
 DEFAULT_DEV_USERS = ["Nerd"] # FIRST-RUN auth.json SEED ONLY - EDIT data/auth.json AFTER
 
@@ -85,36 +84,77 @@ def is_dev_user():
   user = current_user()
   return user != None and any(same_name(user, d) for d in AUTH.get("dev_users", []))
 
+# THE CALLER'S OWN TABLE, RESOLVED FROM THE LIVE SESSION - CORRECT FOR ORDINARY HTTP
+# ROUTES (EACH REQUEST ALREADY REFLECTS session AS OF *THIS* REQUEST, SO THERE'S NO
+# STALENESS RISK). SOCKET EVENT HANDLERS MUST NOT USE THIS - SEE _socket_table() BELOW.
+def current_table():
+  return tables.get(session.get("table_id"))
+
+# SORTS "TABLE 2" BEFORE "TABLE 10" (PLAIN STRING SORT WOULD DO THE OPPOSITE)
+def _table_sort_key(name):
+  return int(name[6:]) if name.startswith("TABLE ") and name[6:].isdigit() else 0
+
+# DEV-ONLY TABLE RESOLUTION FOR /dev/* ROUTES: AN OPTIONAL ?table= QUERY ARG (SET BY
+# #dev-table-select IN THE SETTINGS MODAL) OVERRIDES current_table(), SO A DEV CAN
+# ACT ON ANY TABLE, NOT JUST THEIR OWN. SAFE TO EXPOSE ONLY BECAUSE EVERY dev/* ROUTE
+# IS ALREADY GATED ON is_dev_user() BEFORE THIS IS EVER CALLED (SEE THE path.startswith
+# ("dev/") CHECK BELOW) - THIS DOES NOT MOVE THE DEV'S OWN LIVE VIEW TO THAT TABLE,
+# ONLY SCOPES THE ADMIN ACTION ITSELF (SEE THE COMMENT ON devTableQuery() IN
+# game_client.js)
+def dev_target_table():
+  table_param = request.args.get("table")
+  if table_param:
+    return tables.get(table_param)
+  return current_table()
+
+# PERSONALISED TABLE LIST FOR THE CURRENT SESSION (CHOOSE-TABLE PAGE + /api/tables) -
+# "already_seated" LETS SOMEONE WHO'S ALREADY SEATED AT A NOW-FULL TABLE STILL REJOIN
+# IT (E.G. AFTER session['table_id'] WENT STALE) EVEN THOUGH NEWCOMERS CAN'T
+def _table_summaries():
+  user = current_user()
+  return [
+    {
+      "name": t.name,
+      "state": t.state_name(),
+      "players": [p.name for p in t.players],
+      "full": all(p.name is not None for p in t.players),
+      "already_seated": any(same_name(user, p.name) for p in t.players),
+      "test_mode": t.test_mode,
+      "skip_delays": t.skip_delays,
+    }
+    for t in sorted(tables.values(), key=lambda t: _table_sort_key(t.name))
+  ]
+
 socketio = SocketIO(app, transports=['polling'], logger=False)
 
-game = GameStateMachine(GAME_NAME, socketio_init=socketio)
-game.socketio = socketio
+# TABLE REGISTRY: LOADS EVERY data/tables/<name>/ SAVE FROM DISK (MIGRATING A LEGACY
+# SINGLE-TABLE data/autosave.json IN PLACE IF FOUND, OR SEEDING ONE FRESH "TABLE 1" ON
+# A CLEAN INSTALL) - SEE load_tables_from_disk() IN game_state.py. THE "GAME RESTORED"
+# TOAST CAN'T FIRE HERE (NO CLIENT IS CONNECTED YET AT STARTUP), SO IT IS DEFERRED TO
+# THE FIRST SOCKET CONNECT - BY THEN THE OLD CLIENTS ARE ALL RECONNECTING AND THE
+# ROOM-SCOPED PUSH REACHES THEM (SEE handle_connect)
+restored_toast_pending = load_tables_from_disk(socketio)
 
 # WORKER-JOB FAILURES: THE FULL TRACEBACK IS ALREADY LOGGED BY threaded_schedule -
-# THIS HOOK ADDITIONALLY SURFACES A TOAST SO EVERYONE SEES SOMETHING BROKE
-schedule_t.on_error = lambda job_name, tb: game.sio_toast(
-  f"'{job_name}' failed - check the service logs", kind="danger", seconds=8,
-  category="SERVER ERROR")
+# THIS HOOK ADDITIONALLY SURFACES A TOAST. A FAILING JOB CAN BELONG TO ANY TABLE (OR
+# NONE), SO THIS IS A TRUE UNSCOPED BROADCAST (NO room=) STRAIGHT VIA socketio, NOT
+# THROUGH ANY PARTICULAR TABLE'S sio_toast() - RARE OPS-VISIBILITY SIGNAL, NOT
+# GAMEPLAY, SO EVERYONE SEEING IT IS FINE
+schedule_t.on_error = lambda job_name, tb: socketio.emit(
+  'toast', data={"text": f"'{job_name}' failed - check the service logs",
+                 "kind": "danger", "seconds": 8, "audience": None,
+                 "category": "SERVER ERROR"})
 
-# RESUME THE PERSISTED GAME (IF ANY) - /api/reinit CLEARS IT FOR A TRUE FRESH START.
-# THE "GAME RESTORED" TOAST CAN'T FIRE HERE (NO CLIENT IS CONNECTED YET AT STARTUP),
-# SO IT IS DEFERRED TO THE FIRST SOCKET CONNECT - BY THEN THE OLD CLIENTS ARE ALL
-# RECONNECTING AND THE BROADCAST REACHES THEM
-restored_toast_pending = False
-if os.path.exists(AUTOSAVE_FILE):
-  log(f"AUTOSAVE FOUND - RESTORING GAME STATE FROM {AUTOSAVE_FILE}")
-  restored_toast_pending = game.restore_state(AUTOSAVE_FILE)
-
-# KEEP-ALIVE: is_push_needed RE-PUSHES ONLY IF NOTHING WENT OUT IN THE LAST 10s.
-# QUEUED (NOT CALLED) SO IT RUNS ON THE SINGLE WORKER THAT SERIALISES ALL GAME WORK.
-schedule.every(1).seconds.do(schedule_t.jobqueue.put, game.is_push_needed)
-# FOCUS-IDLE NUDGE: "Are you there X?" TOAST WHEN A HUMAN SITS ON FOCUS TOO LONG
-schedule.every(1).seconds.do(schedule_t.jobqueue.put, game.check_focus_idle)
+# KEEP-ALIVE / FOCUS-IDLE / EMPTY-TABLE REAP: ONE REGISTRATION FANS OUT TO EVERY
+# TABLE IN THE REGISTRY EACH TICK (poll_all_tables IN game_state.py), SO TABLES
+# CREATED/REMOVED AT RUNTIME ARE PICKED UP WITHOUT RE-REGISTERING JOBS. QUEUED (NOT
+# CALLED) SO IT RUNS ON THE SINGLE WORKER THAT SERIALISES ALL GAME WORK.
+schedule.every(1).seconds.do(schedule_t.jobqueue.put, poll_all_tables)
 
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
 @app.route('/<path:path>', methods=['GET', 'POST'])
 def index(path):
-  global players, game, test_driver_enabled
+  global players, test_driver_enabled
 
   # REQUEST-LOG VERBOSITY DIAL. EACH p_* HELPER PRINTS ONLY IF ITS LEVEL IS AT OR
   # BELOW log_level. AT THE "warning" DEFAULT NOTHING BELOW PRINTS - RAISE IT TO
@@ -142,8 +182,21 @@ def index(path):
     if not current_user():
       p_event("HMTL Request: Login")
       return render_template('login.j2.html')
+    target = current_table()
+    if target is None:
+      p_event("HMTL Request: Choose Table")
+      return render_template('choose_table.j2.html', tables=_table_summaries())
     p_event("HMTL Request: Game (Client)")
-    return render_template('game_client.j2.html', home=True)
+    # table_id IS BAKED INTO THE PAGE (SEE game_client.j2.html) AND SENT ON THE
+    # io() CALL'S QUERY STRING - THE connect HANDLER READS IT FROM THERE, NOT FROM
+    # THE LIVE SESSION, SO ORDINARY POLLING-TRANSPORT RECONNECTS (WHICH HAPPEN
+    # ROUTINELY, NOT JUST ON A FULL RELOAD) STAY PINNED TO THE TABLE THIS PAGE WAS
+    # RENDERED FOR EVEN IF A DIFFERENT TAB SHARING THE SAME SESSION COOKIE LATER
+    # SWITCHES TABLES
+    # dev_tables POPULATES #dev-table-select (DEV-ONLY MARKUP) - ONLY WORTH COMPUTING
+    # FOR AN ACTUAL DEV
+    dev_tables = sorted(tables.keys(), key=_table_sort_key) if is_dev_user() else None
+    return render_template('game_client.j2.html', home=True, table_id=target.name, dev_tables=dev_tables)
 
   # DEV ENDPOINTS REQUIRE A LOGGED-IN DEV USER; API HELPERS ANY LOGGED-IN PLAYER
   if path.startswith("dev/") and not is_dev_user():
@@ -151,62 +204,150 @@ def index(path):
   if path.startswith("api/") and not current_user():
     return "forbidden", 403
 
+  if path == "api/tables": # JSON TABLE LIST (SAME SHAPE choose_table.j2.html IS RENDERED WITH)
+    return jsonify(_table_summaries())
+
+  if path == "api/select_table": # JOIN AN EXISTING TABLE (CHOOSE-TABLE PAGE)
+    target = tables.get(request.args.get("id"))
+    if target is None:
+      return "no such table", 404
+    already_seated_here = any(same_name(current_user(), p.name) for p in target.players)
+    # A FULL TABLE CAN'T BE JOINED BY A NEWCOMER - THE POINT OF MULTIPLE TABLES IS TO
+    # CREATE ANOTHER ONE, NOT SPECTATE A FULL ONE. SOMEONE ALREADY SEATED HERE (E.G.
+    # session['table_id'] WENT STALE) CAN STILL REJOIN THEIR OWN TABLE THOUGH.
+    if not already_seated_here and all(p.name is not None for p in target.players):
+      return "table is full", 403
+    # NAME-CASING ADOPTION (RELOCATED FROM login() - THERE'S NO TABLE TO CHECK
+    # AGAINST AT LOGIN TIME ANY MORE): IF THIS NAME IS ALREADY SEATED AT *THIS*
+    # TABLE, ADOPT ITS EXACT SPELLING
+    for player in target.players:
+      if same_name(player.name, current_user()):
+        session['username'] = player.name
+        break
+    session['table_id'] = target.name
+    log(f"'{current_user()}' selected table '{target.name}'")
+    return redirect("/")
+
+  if path == "api/create_table": # CREATE + SELECT A FRESH TABLE (CHOOSE-TABLE PAGE)
+    target = create_table(socketio)
+    session['table_id'] = target.name
+    log(f"'{current_user()}' created table '{target.name}'")
+    return redirect("/")
+
+  if path == "api/change_table": # BACK TO THE TABLE PICKER - EVEN IF ALREADY SEATED
+    target = current_table()
+    if target is not None and target.state_name() == "WAITING FOR PLAYERS":
+      # NOTHING IS AT STAKE YET (NO CARDS DEALT) - PROPERLY VACATE THE SEAT RATHER
+      # THAN ORPHANING IT, SO THE TABLE PICKER'S "PLAYERS ALREADY HERE" LIST STAYS
+      # ACCURATE. ONCE DEALING HAS STARTED THERE'S NO UN-SIT MECHANISM (SEE THE
+      # "Change player" ROADMAP ITEM) - THE SEAT STAYS ORPHANED THEN (BELOW).
+      for player in target.players:
+        if same_name(player.name, current_user()):
+          player.name = None
+          break
+      target.sio_push()
+      target.autosave()
+    session.pop('table_id', None)
+    log(f"'{current_user()}' returned to table selection")
+    return redirect("/")
+
   if path == "api/client_trigger_push":
-    game.sio_push()
-    
-  if path == "api/reinit": # ANY LOGGED-IN PLAYER MAY RESET THE GAME (SETTINGS MODAL)
-    log(f"Flask Request to reinitialise the game (by '{current_user()}')")
-    if game.state_name() != "DEALING":
-      game.__init__(GAME_NAME, socketio_init=socketio)
-      game.clear_autosave() # init means a true fresh start - forget the persisted game
-      game.sio_push()
-      game.sio_toast(f"Game reinitialised by {current_user()}", kind="warning", seconds=6, category="GAME MANAGEMENT")
+    target = current_table()
+    if target:
+      target.sio_push()
+
+  if path == "api/reinit": # ANY LOGGED-IN PLAYER MAY RESET THEIR OWN TABLE (SETTINGS MODAL)
+    target = current_table()
+    if target is None:
+      return "no table selected", 400
+    log(f"Flask Request to reinitialise table '{target.name}' (by '{current_user()}')")
+    if target.state_name() != "DEALING":
+      target.__init__(target.name, socketio_init=socketio) # KEEPS THE TABLE'S OWN NAME
+      target.clear_autosave() # init means a true fresh start - forget the persisted game
+      target.sio_push()
+      target.sio_toast(f"Table reinitialised by {current_user()}", kind="warning", seconds=6, category="GAME MANAGEMENT")
     return "ok"
 
   if path == "dev/cards": # VISUAL REVIEW OF THE CARD BACK + ALL 43 FACES (SHARED PROTO CARD)
     return render_template('cards_review.j2.html')
 
+  if path == "dev/reinit": # DEV-ONLY: REINIT ANY TABLE VIA #dev-table-select
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
+    log(f"Flask Request to reinitialise table '{target.name}' (DEV FEATURE, by '{current_user()}')")
+    if target.state_name() != "DEALING":
+      target.__init__(target.name, socketio_init=socketio) # KEEPS THE TABLE'S OWN NAME
+      target.clear_autosave()
+      target.sio_push()
+      target.sio_toast(f"Table reinitialised by {current_user()} (dev)", kind="warning", seconds=6, category="GAME MANAGEMENT")
+    return "ok"
+
+  if path == "dev/delete_table": # DEV-ONLY: PERMANENTLY DELETE ANY TABLE (SAME TEARDOWN AS REAPING)
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
+    name = target.name
+    log(f"Flask Request to DELETE table '{name}' (DEV FEATURE, by '{current_user()}')")
+    delete_table(name, f"deleted by {current_user()}")
+    return "ok"
+
   if path == "dev/save":
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
     log(f"Flask Request to save dev checkpoint (DEV FEATURE)")
-    game.save_state(CHECKPOINT_FILE, reason="(dev checkpoint)")
-    game.sio_toast(f"Checkpoint saved by {current_user()}", kind="success", category="GAME MANAGEMENT")
+    target.save_state(target.checkpoint_path, reason="(dev checkpoint)")
+    target.sio_toast(f"Checkpoint saved by {current_user()}", kind="success", category="GAME MANAGEMENT")
     return "ok"
 
   if path == "dev/load":
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
     log(f"Flask Request to load dev checkpoint (DEV FEATURE)")
     user = current_user() # CAPTURED NOW - THE WORKER THREAD HAS NO REQUEST CONTEXT
     def load_and_toast():
-      if game.restore_state(CHECKPOINT_FILE):
-        game.sio_toast(f"Checkpoint loaded by {user}", kind="success", seconds=6, category="GAME MANAGEMENT")
+      if target.restore_state(target.checkpoint_path):
+        target.sio_toast(f"Checkpoint loaded by {user}", kind="success", seconds=6, category="GAME MANAGEMENT")
       else:
-        game.sio_toast(f"Checkpoint load FAILED (requested by {user})", kind="danger", seconds=6, category="GAME MANAGEMENT")
+        target.sio_toast(f"Checkpoint load FAILED (requested by {user})", kind="danger", seconds=6, category="GAME MANAGEMENT")
     schedule_t.jobqueue.put(load_and_toast) # on the worker so it can't interleave with auto jobs
     return "ok"
 
   if path == "dev/clearchk":
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
     log(f"Flask Request to clear dev checkpoint (DEV FEATURE)")
-    if os.path.exists(CHECKPOINT_FILE):
-      os.remove(CHECKPOINT_FILE)
-      game.sio_toast(f"Checkpoint cleared by {current_user()}", category="GAME MANAGEMENT")
+    if os.path.exists(target.checkpoint_path):
+      os.remove(target.checkpoint_path)
+      target.sio_toast(f"Checkpoint cleared by {current_user()}", category="GAME MANAGEMENT")
     else:
-      game.sio_toast("No checkpoint to clear", category="SERVER ERROR")
+      target.sio_toast("No checkpoint to clear", category="SERVER ERROR")
     return "ok"
 
   if path == "dev/test":
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
     log(f"Flask Request to toggle test mode automation (DEV FEATURE)")
-    game.test_mode = not game.test_mode
-    if game.test_mode:
-      schedule_t.jobqueue.put(lambda: bots.dev_random_seat_bots(game))
-    game.sio_push() # also queues a dev_random_bot_check if test mode is now on
-    game.sio_toast(f"Test mode {'enabled' if game.test_mode else 'disabled'} by {current_user()}",
-                   kind="warning" if game.test_mode else "info", category="GAME MANAGEMENT")
+    target.test_mode = not target.test_mode
+    if target.test_mode:
+      schedule_t.jobqueue.put(lambda: bots.dev_random_seat_bots(target))
+    target.sio_push() # also queues a dev_random_bot_check if test mode is now on
+    target.sio_toast(f"Test mode {'enabled' if target.test_mode else 'disabled'} by {current_user()}",
+                   kind="warning" if target.test_mode else "info", category="GAME MANAGEMENT")
     return "ok"
   if path == "dev/skipdelays":
+    target = dev_target_table()
+    if target is None:
+      return "no table selected", 400
     log(f"Flask Request to toggle skip delays (DEV FEATURE)")
-    game.skip_delays = not game.skip_delays
-    game.sio_push()
-    game.sio_toast(f"Skip delays {'enabled' if game.skip_delays else 'disabled'} by {current_user()}",
-                   kind="warning" if game.skip_delays else "info", category="GAME MANAGEMENT")
+    target.skip_delays = not target.skip_delays
+    target.sio_push()
+    target.sio_toast(f"Skip delays {'enabled' if target.skip_delays else 'disabled'} by {current_user()}",
+                   kind="warning" if target.skip_delays else "info", category="GAME MANAGEMENT")
     return "ok"
 
   if path == "dev/uptime":
@@ -219,9 +360,12 @@ def index(path):
       return "restart command not configured", 501
     log(f"Flask Request to RESTART THE SERVICE (by '{current_user()}'): {RESTART_COMMAND}")
     # TOAST FIRST FOR THE BEST CHANCE OF REACHING THE OPEN LONG-POLLS BEFORE THE
-    # PROCESS DIES (RESTART_DELAY_S LATER)
-    game.sio_toast(f"Service restarting now (by {current_user()}) - hold tight...", kind="warning", seconds=8, category="SERVER")
-    game.save_state(AUTOSAVE_FILE, reason="(pre-restart)") # THE GAME IS RESTORED FROM THIS ON THE WAY BACK UP
+    # PROCESS DIES (RESTART_DELAY_S LATER). RESTART AFFECTS EVERY TABLE, SO THIS IS A
+    # TRUE UNSCOPED BROADCAST, NOT ROOM-SCOPED TO ANY ONE TABLE
+    socketio.emit('toast', data={"text": f"Service restarting now (by {current_user()}) - hold tight...",
+                                  "kind": "warning", "seconds": 8, "audience": None, "category": "SERVER"})
+    for t in tables.values(): # EVERY TABLE IS RESTORED FROM ITS OWN AUTOSAVE ON THE WAY BACK UP
+      t.save_state(t.autosave_path, reason="(pre-restart)")
     def do_restart():
       time.sleep(RESTART_DELAY_S) # THE RESPONSE BELOW MUST REACH THE CLIENT FIRST - THIS KILLS US
       try:
@@ -246,12 +390,9 @@ def login():
   if not hmac.compare_digest(passcode, str(AUTH.get("passcode", ""))):
     log(f"FAILED LOGIN ATTEMPT for name '{name}'")
     return render_template('login.j2.html', error="Wrong passcode.")
-  # NAMES ARE CASE-INSENSITIVE: IF THIS NAME IS ALREADY SEATED IN THE GAME, ADOPT THE
-  # SEATED SPELLING SO DISPLAY STAYS AS FIRST WRITTEN
-  for player in game.players:
-    if same_name(player.name, name):
-      name = player.name
-      break
+  # NAME-CASING ADOPTION (IF THIS NAME IS ALREADY SEATED SOMEWHERE, ADOPT ITS EXACT
+  # SPELLING) HAPPENS AT TABLE-SELECTION TIME NOW, NOT HERE - LOGIN HAS NO TABLE YET
+  # TO CHECK AGAINST (SEE /api/select_table)
   session.permanent = True
   session['username'] = name
   log(f"LOGIN: '{name}'")
@@ -291,58 +432,99 @@ def inject_data():
 # SOCKET-HANDLER FAILURES: FLASK-SOCKETIO SWALLOWS HANDLER EXCEPTIONS INTO ITS OWN
 # LOGGER, SO A FAILED PLAYER ACTION (E.G. gui_play RAISING) WOULD OTHERWISE DIE
 # SILENTLY - NO GAME LOG LINE, NO FEEDBACK, THE CLICK JUST DOES NOTHING. MIRRORS THE
-# WORKER-QUEUE on_error HOOK: FULL TRACEBACK TO THE LOG + A DANGER TOAST FOR EVERYONE.
+# WORKER-QUEUE on_error HOOK: FULL TRACEBACK TO THE LOG + A DANGER TOAST. UNSCOPED
+# BROADCAST, NOT ROOM-SCOPED - THE FAILURE MAY HAVE HAPPENED BEFORE ANY TABLE COULD
+# BE RESOLVED (E.G. DURING connect ITSELF), SO THERE'S NO RELIABLE TABLE TO SCOPE TO.
 @socketio.on_error_default
 def handle_socket_error(e):
   event = request.event["message"] if hasattr(request, "event") else "?"
   log(f"SOCKET HANDLER FAILED: '{event}'\n{traceback.format_exc()}")
-  game.sio_toast(f"'{event}' failed - check the service logs", kind="danger", seconds=8, category="SERVER ERROR")
+  socketio.emit('toast', data={"text": f"'{event}' failed - check the service logs",
+                                "kind": "danger", "seconds": 8, "audience": None,
+                                "category": "SERVER ERROR"})
+
+# RESOLVES WHICH TABLE *THIS CONNECTED SOCKET* BELONGS TO, FOR USE INSIDE ACTION
+# HANDLERS (seat_request, play_card, ...). DELIBERATELY NOT current_table() (WHICH
+# READS THE LIVE session) - A SOCKET'S ROOM MEMBERSHIP IS FIXED AT connect() TIME
+# (SEE handle_connect) AND MUST STAY THAT WAY FOR THE LIFE OF THE CONNECTION, EVEN IF
+# session['table_id'] LATER CHANGES FROM ANOTHER TAB SHARING THE SAME COOKIE -
+# OTHERWISE THIS SOCKET'S PUSHES (PINNED TO ITS JOINED ROOM) AND ITS ACTIONS (IF THEY
+# READ THE LIVE SESSION) COULD SILENTLY DIVERGE, ACTING ON A DIFFERENT TABLE THAN THE
+# ONE THE PLAYER IS ACTUALLY LOOKING AT
+def _socket_table():
+  for room in rooms():
+    if room in tables:
+      return tables[room]
+  return None
 
 @socketio.on('connect')
 def handle_connect(data):
   global restored_toast_pending
   if not current_user():
     return False # reject unauthenticated socket connections
-  game.sio_push() # send the newcomer the whole current state
+  # table_id RIDES THE io() HANDSHAKE'S QUERY STRING (SET FROM THE PAGE RENDER, SEE
+  # index() ABOVE) - NOT THE LIVE SESSION - SO IT'S RE-SENT UNCHANGED ON EVERY
+  # ORDINARY RECONNECT, NOT JUST A FULL PAGE LOAD (SEE THE COMMENT AT THE RENDER
+  # SITE). REJECT IF IT DOESN'T RESOLVE TO A LIVE TABLE (E.G. ALREADY REAPED).
+  target = tables.get(request.args.get("table_id"))
+  if target is None:
+    return False
+  join_room(target.name) # MUST HAPPEN BEFORE THE PUSH BELOW OR THIS SOCKET MISSES IT
+  target.sio_push() # send the newcomer the whole current state (room-scoped)
   if restored_toast_pending: # STARTUP RESTORE NOTICE, ONCE, ON THE FIRST CONNECT
     restored_toast_pending = False
-    game.sio_toast("Game restored from autosave (service restarted)", kind="success", seconds=6, category="SERVER")
+    target.sio_toast("Game restored from autosave (service restarted)", kind="success", seconds=6, category="SERVER")
 
 @socketio.on('seat_request')
 def handle_seat_request(data):
   if not current_user():
     return
-  game.gui_sit(current_user(), position=(data["seat_i"] - 1))
-  game.sio_push()
-  game.autosave()
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_sit(current_user(), position=(data["seat_i"] - 1))
+  target.sio_push()
+  target.autosave()
 
 @socketio.on('bid_submit')
 def handle_bid_submit(data):
   if not current_user():
     return
-  game.gui_bid(current_user(), data['bid'])
-  game.autosave()
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_bid(current_user(), data['bid'])
+  target.autosave()
 
 @socketio.on('discard_submit')
 def handle_discard_submit(data):
   if not current_user():
     return
-  game.gui_discard(current_user(), data['discard'])
-  game.autosave()
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_discard(current_user(), data['discard'])
+  target.autosave()
 
 @socketio.on('play_card')
 def handle_play_card(data):
   if not current_user():
     return
-  game.gui_play(current_user(), data['card'])
-  game.autosave()
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_play(current_user(), data['card'])
+  target.autosave()
 
 @socketio.on('joker_nominate')
 def handle_joker_nominate(data):
   if not current_user():
     return
-  game.gui_joker_nominate(current_user(), data['suit'])
-  game.autosave()
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_joker_nominate(current_user(), data['suit'])
+  target.autosave()
 
 @socketio.on('add_bots')
 def handle_add_bots(data):
@@ -350,18 +532,21 @@ def handle_add_bots(data):
     return
   if not current_user():
     return
+  target = _socket_table()
+  if target is None:
+    return
   # ONLY A SEATED PLAYER MAY SUMMON BOTS: OTHERWISE THEY'D FILL ALL FOUR SEATS, LOCK
   # THE REQUESTER OUT, AND THE TABLE WOULD RE-DEAL FOREVER (BOTS ALONE CAN ALL-PASS).
   # THE CLIENT HIDES THE BUTTON UNTIL SEATED TOO - THIS IS THE AUTHORITATIVE CHECK
-  if not any(same_name(current_user(), p.name) for p in game.players):
+  if not any(same_name(current_user(), p.name) for p in target.players):
     return
-  log(f"'{current_user()}' requested bots to fill the empty seats")
-  game.sio_toast(f"{current_user()} is filling the empty seats with bots...", category="PLAYERS")
+  log(f"'{current_user()}' requested bots to fill the empty seats at '{target.name}'")
+  target.sio_toast(f"{current_user()} is filling the empty seats with bots...", category="PLAYERS")
   # ON THE WORKER QUEUE (NOT INLINE) BECAUSE SEATING PACES ITSELF WITH game.delay() AND
   # EACH gui_sit MAY TRIGGER state_trans - SAME SERIALISATION RULE AS ALL GAME MUTATIONS.
   # NO EXPLICIT AUTOSAVE HERE: EACH gui_sit AUTOSAVES VIA ITS OWN move_state/state_trans
   # PATH ONCE THE TABLE FILLS, AND A HALF-SEATED LOBBY IS HARMLESS TO LOSE
-  schedule_t.jobqueue.put(lambda: bots.seat_player_bots(game))
+  schedule_t.jobqueue.put(lambda: bots.seat_player_bots(target))
 
 if __name__ == '__main__':
 

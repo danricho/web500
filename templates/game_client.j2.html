@@ -48,6 +48,10 @@
       var SESSION_USERNAME = {{ session_username | tojson }};
       var SESSION_IS_DEV = {{ session_is_dev | tojson }};
       var BOTS_ENABLED = {{ bots_enabled | tojson }};
+      // PINNED TO THE TABLE THIS PAGE WAS RENDERED FOR - SENT ON THE io() HANDSHAKE'S
+      // QUERY STRING SO RECONNECTS STAY ON THIS TABLE EVEN IF THE SESSION CHANGES
+      // TABLE ELSEWHERE (SEE main.py's index()/connect HANDLER)
+      var TABLE_ID = {{ table_id | tojson }};
     </script>
     <script src="/static/game_client.js?{{timeNow}}"></script>
 
@@ -86,10 +90,8 @@
               />
             </svg>
             <div class="" style="font-size: 8rem; font-weight: bold">
-              <span style="opacity: 5%">Web</span
-              ><span style="color: var(--primary-color); opacity: 10%"
-                >500</span
-              >
+              <span style="opacity: 5%">Web</span>
+              <span style="color: var(--primary-color); opacity: 10%">500</span>
             </div>
           </div>
           <div
@@ -260,8 +262,8 @@
                 style="display: none"
               >
                 <div class="text-center border-rounded-small dark-on-light m-2">
-                  <span class="bid-to-beat-title">Current High Bid: </span
-                  ><span class="bid-to-beat bold">None yet.</span>
+                  <span class="bid-to-beat-title">Current High Bid:</span>
+                  <span class="bid-to-beat bold">None yet.</span>
                 </div>
                 <div class="text-center m-1">
                   <div class="bid-suit d-inline-block">
@@ -412,9 +414,11 @@
           </div>
         </div>
         <div class="light-on-darker py-2 mt-2 z-ribbon">
-          <span class="pe-4" style="font-weight: bold"
-            >Web<span style="color: var(--primary-color)">500</span></span
-          ><span class="game-dialog italic">&nbsp;</span>
+          <span class="pe-4" style="font-weight: bold">
+            Web
+            <span style="color: var(--primary-color)">500</span>
+          </span>
+          <span class="game-dialog italic">&nbsp;</span>
         </div>
       </div>
 
@@ -448,14 +452,16 @@
                 />
               </svg>
               <div class="" style="font-size: 4rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-3">Seating Selection</h5>
             <div id="choose-seat-div" class="m-3" style="display: none">
               <p class="my-4">
                 Please choose a seat,
-                <span id="chosen-username" class="italic"></span>.
+                <span id="chosen-username" class="italic"></span>
+                .
               </p>
               <div class="my-2">
                 <p class="mb-2 bold">Team 1</p>
@@ -507,19 +513,34 @@
                   ADD BOTS
                 </button>
               </p>
+              <!-- BACK TO THE TABLE PICKER - ONLY OFFERED WHILE WAITING FOR PLAYERS
+                   (game_client.js GATES IT ON gameState, NOT JUST connected). At
+                   this state nothing's been dealt, so /api/change_table properly
+                   vacates the seat rather than orphaning it. -->
+              <p class="my-2">
+                <button
+                  type="button"
+                  class="change-table"
+                  style="display: none"
+                >
+                  CHANGE TABLE
+                </button>
+              </p>
             </div>
             <div class="py-2">
               <span class="game-dialog italic">&nbsp;</span>
             </div>
 
             <div class="modal-meta">
-              <button type="button" class="toggle-bid-ref">BID VALUES</button
-              ><br />
+              <button type="button" class="toggle-bid-ref">BID VALUES</button>
+              <br />
               <button type="button" class="show-rules">GAME RULES</button>
-              <small
-                >Created by
-                <a href="https://danricho.com" target="_blank">danricho</a> in
-                2022, then 2026<br />{{ version }} -
+              <small>
+                Created by
+                <a href="https://danricho.com" target="_blank">danricho</a>
+                in 2022, then 2026
+                <br />
+                {{ version }} -
                 <a href="https://github.com/danricho/web500" target="_blank"
                   >GitHub</a
                 >
@@ -559,7 +580,8 @@
                 />
               </svg>
               <div class="" style="font-size: 4rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-3">Scoreboard</h5>
@@ -569,14 +591,14 @@
                   <thead>
                     <tr>
                       <th>
-                        <span class="bold">Team 1</span><br /><span
-                          class="team-1-players italic"
-                        ></span>
+                        <span class="bold">Team 1</span>
+                        <br />
+                        <span class="team-1-players italic"></span>
                       </th>
                       <th>
-                        <span class="bold">Team 2</span><br /><span
-                          class="team-2-players italic"
-                        ></span>
+                        <span class="bold">Team 2</span>
+                        <br />
+                        <span class="team-2-players italic"></span>
                       </th>
                     </tr>
                   </thead>
@@ -584,10 +606,11 @@
                 </table>
 
                 <button type="button" class="toggle-bid-ref mt-2">
-                  BID VALUES</button
-                ><br />
-                <button type="button" class="show-rules">GAME RULES</button
-                ><br />
+                  BID VALUES
+                </button>
+                <br />
+                <button type="button" class="show-rules">GAME RULES</button>
+                <br />
                 <button type="button" class="unforce-scores my-3">
                   CLOSE PANEL
                 </button>
@@ -597,14 +620,16 @@
               </div>
             </div>
             <div class="modal-meta">
-              <small
-                >Created by
-                <a href="https://danricho.com" target="_blank">danricho</a> in
-                2022, then 2026<br />{{ version }} -
+              <small>
+                Created by
+                <a href="https://danricho.com" target="_blank">danricho</a>
+                in 2022, then 2026
+                <br />
+                {{ version }} -
                 <a href="https://github.com/danricho/web500" target="_blank"
                   >GitHub</a
-                ></small
-              >
+                >
+              </small>
             </div>
           </div>
         </div>
@@ -641,7 +666,8 @@
                 />
               </svg>
               <div class="" style="font-size: 2rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-2">User Settings</h5>
@@ -666,14 +692,18 @@
               >
                 RELOAD CLIENT
               </button>
+              {% if not session_is_dev %}
+              <!-- NON-DEV PLAYERS: REINIT IS ALWAYS THEIR OWN CURRENT TABLE, NO
+                   PICKER. DEVS GET AN EQUIVALENT CONTROL INSIDE #dev-section BELOW,
+                   SCOPED BY #dev-table-select - THIS ONE IS HIDDEN FOR THEM INSTEAD -->
               <button
                 type="button"
                 class="reinit button-small mt-4"
                 style="display: none"
               >
-                REINITIALISE GAME
+                REINITIALISE TABLE
               </button>
-              {% if session_is_dev %}
+              {% endif %} {% if session_is_dev %}
               <!-- DEV-ONLY SECTION: RENDERED SERVER-SIDE FOR dev_users ONLY (the
                    /dev/* endpoints re-check the session on every call) -->
               <div
@@ -683,32 +713,78 @@
               >
                 <div class="game-state bold">NOT CONNECTED</div>
 
-                <button
-                  type="button"
-                  id="toggle-test"
-                  class="button-small"
-                  onclick="
-                    event.preventDefault();
-                    $.ajax({ url: '/dev/test' });
-                    $.ajax({ url: '/api/client_trigger_push' });
-                  "
-                  style="display: none"
-                >
-                  TEST MODE: OFF
-                </button>
-                <button
-                  type="button"
-                  id="toggle-skip-delays"
-                  class="button-small"
-                  onclick="
-                    event.preventDefault();
-                    $.ajax({ url: '/dev/skipdelays' });
-                    $.ajax({ url: '/api/client_trigger_push' });
-                  "
-                  style="display: none"
-                >
-                  SKIP DELAYS: OFF
-                </button>
+                <!-- SCOPES EVERY DEV BUTTON BELOW (SAVE/LOAD/CLEAR CHECKPOINT, TEST
+                     MODE, SKIP DELAYS, REINIT, DELETE) TO WHICHEVER TABLE IS PICKED
+                     HERE, NOT NECESSARILY THE DEV'S OWN - DEFAULTS TO THEIR OWN TABLE.
+                     NOTE: THIS ONLY SCOPES THE ADMIN ACTIONS THEMSELVES - IT DOESN'T
+                     MOVE THIS BROWSER'S OWN LIVE VIEW TO THAT TABLE (SEE main.py's
+                     dev_target_table() COMMENT). THE OPTION LIST IS SERVER-RENDERED AT
+                     PAGE LOAD SO IT CAN GO STALE (A TABLE CREATED/DELETED SINCE WON'T
+                     SHOW) - refreshDevTableSelect() IN game_client.js RE-FETCHES
+                     /api/tables AND REBUILDS IT EVERY TIME THE SETTINGS MODAL OPENS
+                     (SAME "RE-ASK ON OPEN" PATTERN AS #service-uptime) -->
+                <p class="bold mt-2 mb-2">
+                  <label for="dev-table-select" style="display: inline"
+                    >Dev actions target:</label
+                  >
+
+                  <select id="dev-table-select" class="mb-2">
+                    {% for name in dev_tables %}
+                    <!-- prettier-ignore -->
+                    <option value="{{ name }}" {% if name == table_id %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                </p>
+                <div class="modal-btn-row">
+                  <button
+                    type="button"
+                    id="dev-reinit"
+                    class="button-small"
+                    style="display: none"
+                  >
+                    REINITIALISE TABLE
+                  </button>
+                  <button
+                    type="button"
+                    id="dev-delete-table"
+                    class="button-small"
+                    style="display: none"
+                  >
+                    DELETE TABLE
+                  </button>
+                </div>
+                <div class="modal-btn-row">
+                  <button
+                    type="button"
+                    id="toggle-test"
+                    class="button-small"
+                    onclick="
+                      event.preventDefault();
+                      $.ajax({ url: '/dev/test' + devTableQuery() }).done(function () {
+                        $.ajax({ url: '/api/client_trigger_push' });
+                        refreshDevTableSelect();
+                      });
+                    "
+                    style="display: none"
+                  >
+                    TEST MODE: OFF
+                  </button>
+                  <button
+                    type="button"
+                    id="toggle-skip-delays"
+                    class="button-small"
+                    onclick="
+                      event.preventDefault();
+                      $.ajax({ url: '/dev/skipdelays' + devTableQuery() }).done(function () {
+                        $.ajax({ url: '/api/client_trigger_push' });
+                        refreshDevTableSelect();
+                      });
+                    "
+                    style="display: none"
+                  >
+                    SKIP DELAYS: OFF
+                  </button>
+                </div>
                 <div class="modal-btn-row mt-4">
                   <button
                     type="button"
@@ -750,7 +826,8 @@
               {% endif %}
 
               <p class="bold mt-4">
-                Logged in as <span class="italic">{{ session_username }}</span>
+                Logged in as
+                <span class="italic">{{ session_username }}</span>
               </p>
               <button type="button" id="logout" class="button-small">
                 LOG OUT
@@ -794,7 +871,8 @@
                 />
               </svg>
               <div class="" style="font-size: 2rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-2">BID VALUES</h5>
@@ -902,7 +980,8 @@
                 />
               </svg>
               <div class="" style="font-size: 2rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-2">How to Play 500</h5>
@@ -912,10 +991,11 @@
                 500 is a trick-taking card game for four players in two fixed
                 teams &mdash; you and the player sitting opposite are partners.
                 Each hand, one team wins the bidding and commits to a
-                <em>contract</em>: winning at least a stated number of tricks
-                with a trump suit of their choice (or with no trumps at all).
-                Make the contract and your team scores its value; fail and that
-                value is deducted. First team to 500 points wins the game.
+                <em>contract</em>
+                : winning at least a stated number of tricks with a trump suit
+                of their choice (or with no trumps at all). Make the contract
+                and your team scores its value; fail and that value is deducted.
+                First team to 500 points wins the game.
               </p>
 
               <h6>The cards</h6>
@@ -924,7 +1004,9 @@
                 the 2s, 3s and the black 4s removed, plus one Joker. Red suits
                 run 4 up to Ace; black suits run 5 up to Ace. Each player is
                 dealt 10 cards, and the remaining three go face-down to the
-                middle as the <em>kitty</em>.
+                middle as the
+                <em>kitty</em>
+                .
               </p>
 
               <h6>Bidding</h6>
@@ -936,9 +1018,12 @@
                 <em
                   >our team will win at least seven tricks with hearts as
                   trumps</em
-                >. Every bid must be worth more points than the one before it.
+                >
+                . Every bid must be worth more points than the one before it.
                 For the same number of tricks the suits rank, lowest to highest:
-                [<span>&spades;&#xFE0E;</span> <span>&clubs;&#xFE0E;</span>
+                [
+                <span>&spades;&#xFE0E;</span>
+                <span>&clubs;&#xFE0E;</span>
                 &diams;&#xFE0E; &hearts;&#xFE0E; No&nbsp;Trumps] &mdash; so
                 eight spades (240) beats seven no&nbsp;trumps (220). The full
                 table is under BID VALUES on the scoreboard.
@@ -953,20 +1038,21 @@
               <h6>Mis&egrave;re</h6>
               <p>
                 Mis&egrave;re is a special bid: a contract to lose
-                <em>every</em> trick, played with no trumps, worth 250 points.
-                It may only be bid once the highest bid so far is a seven, and
-                only a bid worth more than 250 beats it (eight clubs and up
-                &mdash; eight spades at 240 does not). The mis&egrave;re bidder
-                plays alone &mdash; their partner sits the hand out and tricks
-                are three cards. The contract fails the instant the bidder wins
-                a trick.
+                <em>every</em>
+                trick, played with no trumps, worth 250 points. It may only be
+                bid once the highest bid so far is a seven, and only a bid worth
+                more than 250 beats it (eight clubs and up &mdash; eight spades
+                at 240 does not). The mis&egrave;re bidder plays alone &mdash;
+                their partner sits the hand out and tricks are three cards. The
+                contract fails the instant the bidder wins a trick.
               </p>
               <p>
                 <strong>Open Mis&egrave;re</strong>
-                <span class="rules-tag">not implemented</span> is the bolder
-                version, worth 500 points: the same lose-every-trick contract,
-                but played with the bidder&rsquo;s hand face-up on the table for
-                everyone to see. It cannot be bid in this game yet.
+                <span class="rules-tag">not implemented</span>
+                is the bolder version, worth 500 points: the same
+                lose-every-trick contract, but played with the bidder&rsquo;s
+                hand face-up on the table for everyone to see. It cannot be bid
+                in this game yet.
               </p>
 
               <h6>The kitty</h6>
@@ -978,13 +1064,20 @@
               <h6>Bowers and the Joker</h6>
               <p>In a suit contract the top three trumps are, highest first:</p>
               <ul>
-                <li>the <em>Joker</em>,</li>
                 <li>
-                  the <em>right bower</em> &mdash; the Jack of the trump suit,
+                  the
+                  <em>Joker</em>
+                  ,
                 </li>
                 <li>
-                  the <em>left bower</em> &mdash; the Jack of the other suit of
-                  the same colour.
+                  the
+                  <em>right bower</em>
+                  &mdash; the Jack of the trump suit,
+                </li>
+                <li>
+                  the
+                  <em>left bower</em>
+                  &mdash; the Jack of the other suit of the same colour.
                 </li>
               </ul>
               <p>
@@ -997,22 +1090,25 @@
                 In No Trumps and Mis&egrave;re the Joker is the only trump
                 &mdash; it wins any trick it is played to, but it may only be
                 played when you cannot follow suit. Leading it is special: the
-                leader must <em>nominate</em> a suit (in a panel at the top
-                right) which the other players must follow if they can. The
-                nominated suit must be one that has not been led earlier in the
-                hand &mdash; so once all four suits have been led, the Joker
-                cannot be led at all, except to the last trick (where no
-                nomination is needed).
+                leader must
+                <em>nominate</em>
+                a suit (in a panel at the top right) which the other players
+                must follow if they can. The nominated suit must be one that has
+                not been led earlier in the hand &mdash; so once all four suits
+                have been led, the Joker cannot be led at all, except to the
+                last trick (where no nomination is needed).
               </p>
               <p>
-                <strong>Joker pre-nomination</strong> &mdash; a contractor who
-                holds the Joker may instead declare its suit before leading to
-                the first trick (offered in the same top-right panel). The Joker
-                then counts as the <em>highest card of that suit</em> for the
-                whole hand: it must be played to follow that suit, it wins any
-                trick of that suit, and it wins nothing when thrown on another
-                suit &mdash; which is exactly how a mis&egrave;re bidder can get
-                rid of it. Declaring is optional; just lead a card to skip it.
+                <strong>Joker pre-nomination</strong>
+                &mdash; a contractor who holds the Joker may instead declare its
+                suit before leading to the first trick (offered in the same
+                top-right panel). The Joker then counts as the
+                <em>highest card of that suit</em>
+                for the whole hand: it must be played to follow that suit, it
+                wins any trick of that suit, and it wins nothing when thrown on
+                another suit &mdash; which is exactly how a mis&egrave;re bidder
+                can get rid of it. Declaring is optional; just lead a card to
+                skip it.
               </p>
 
               <h6>Playing the hand</h6>
@@ -1032,7 +1128,9 @@
                 </li>
                 <li>
                   if the left bower is your only card of its printed suit, you
-                  are <em>not</em> forced to play it when that suit is led;
+                  are
+                  <em>not</em>
+                  forced to play it when that suit is led;
                 </li>
                 <li>
                   in mis&egrave;re, if you cannot follow suit and hold the
@@ -1055,18 +1153,21 @@
               <p>
                 Contract made: the bidding team scores the bid&rsquo;s value
                 (see BID VALUES). Winning all ten tricks scores at least 250
-                &mdash; the <em>slam</em> rule. Contract failed: the bid&rsquo;s
-                value is deducted, and scores can go negative. The other team
-                always scores 10 points per trick they win, whether the contract
-                succeeds or not &mdash; except against mis&egrave;re, where they
-                score nothing. Mis&egrave;re itself scores plus or minus 250.
+                &mdash; the
+                <em>slam</em>
+                rule. Contract failed: the bid&rsquo;s value is deducted, and
+                scores can go negative. The other team always scores 10 points
+                per trick they win, whether the contract succeeds or not &mdash;
+                except against mis&egrave;re, where they score nothing.
+                Mis&egrave;re itself scores plus or minus 250.
               </p>
 
               <h6>Winning the game</h6>
               <p>
                 The first team to reach 500 points or more wins. A team falling
                 to minus 500 or worse loses immediately &mdash; going
-                <em>out the back door</em>.
+                <em>out the back door</em>
+                .
               </p>
 
               <h6>Limitations / Not in this game (yet)</h6>
@@ -1076,8 +1177,9 @@
               </p>
               <ul>
                 <li>
-                  <strong>Open Mis&egrave;re</strong> &mdash; the 500-point
-                  exposed-hand mis&egrave;re described above cannot be bid.
+                  <strong>Open Mis&egrave;re</strong>
+                  &mdash; the 500-point exposed-hand mis&egrave;re described
+                  above cannot be bid.
                 </li>
               </ul>
 
@@ -1089,7 +1191,8 @@
                     href="https://www.pagat.com/euchre/500.html"
                     target="_blank"
                     >pagat.com/euchre/500.html</a
-                  >. For the definitive treatment and every regional variation,
+                  >
+                  . For the definitive treatment and every regional variation,
                   see that page.
                 </small>
               </div>
@@ -1129,20 +1232,23 @@
                 />
               </svg>
               <div class="" style="font-size: 4rem; font-weight: bold">
-                Web<span style="color: var(--primary-color)">500</span>
+                Web
+                <span style="color: var(--primary-color)">500</span>
               </div>
             </div>
             <h5 class="my-3 c-danger">Disconnected</h5>
             <p class="c-danger">Trying to connect to server...</p>
             <div class="modal-meta">
-              <small
-                >Created by
-                <a href="https://danricho.com" target="_blank">danricho</a> in
-                2022, then 2026<br />{{ version }} -
+              <small>
+                Created by
+                <a href="https://danricho.com" target="_blank">danricho</a>
+                in 2022, then 2026
+                <br />
+                {{ version }} -
                 <a href="https://github.com/danricho/web500" target="_blank"
                   >GitHub</a
-                ></small
-              >
+                >
+              </small>
             </div>
           </div>
         </div>

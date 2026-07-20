@@ -3,6 +3,8 @@ from time import sleep
 from random import randint
 import json
 import os
+import shutil
+import threading
 
 from playing_cards import *
 from dotdict import dotdict as dd
@@ -27,10 +29,128 @@ def same_name(a, b):
 
 # SAVE FILES: AUTOSAVE PERSISTS THE LIVE GAME ACROSS SERVICE RESTARTS (LOADED AT STARTUP,
 # CLEARED BY /api/reinit); CHECKPOINT IS THE MANUAL DEV SAVE/LOAD SLOT (SEPARATE FILE).
+# EACH TABLE GETS ITS OWN SUBDIRECTORY - SEE THE TABLE REGISTRY BELOW.
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-AUTOSAVE_FILE = os.path.join(DATA_DIR, "autosave.json")
-CHECKPOINT_FILE = os.path.join(DATA_DIR, "checkpoint.json")
+TABLES_DIR = os.path.join(DATA_DIR, "tables")
 SAVE_VERSION = 3 # BUMP WHENEVER THE SAVED STATE SHAPE CHANGES - OLD FILES ARE THEN REFUSED
+
+# ---------------------------------------------------------------------------
+# TABLE REGISTRY (MULTI-TABLE SUPPORT). A "TABLE" IS JUST A GameStateMachine
+# INSTANCE; ITS NAME DOUBLES AS THE Socket.IO ROOM NAME AND THE data/tables/<name>/
+# SAVE-DIRECTORY NAME - NO SEPARATE ID CONCEPT. NAMES ARE GENERIC AND SELF-DERIVED
+# ("TABLE 1", "TABLE 2", ...): SCAN THE REGISTRY FOR THE HIGHEST EXISTING N AND PICK
+# N+1, SO A GAP LEFT BY A REAPED TABLE IS NEVER REUSED (A STALE CLIENT REFERENCE
+# CAN'T SILENTLY REATTACH TO AN UNRELATED NEW TABLE OF THE SAME NAME).
+# ---------------------------------------------------------------------------
+tables = {} # name -> GameStateMachine, IN-MEMORY REGISTRY OF EVERY LIVE TABLE
+TABLE_EMPTY_REAP_S = 300 # A TABLE WITH NO SEATED PLAYER FOR THIS LONG IS AUTO-REMOVED
+_table_registry_lock = threading.Lock() # GUARDS "COMPUTE NEXT NAME + INSERT" AS ONE STEP
+                                         # (THE APP RUNS 100 THREADS - TWO CONCURRENT
+                                         # /api/create_table CALLS COULD OTHERWISE COLLIDE)
+
+def table_dir(name):
+  return os.path.join(TABLES_DIR, name)
+def table_autosave_path(name):
+  return os.path.join(table_dir(name), "autosave.json")
+def table_checkpoint_path(name):
+  return os.path.join(table_dir(name), "checkpoint.json")
+
+def _next_table_name():
+  numbers = [int(n[6:]) for n in tables if n.startswith("TABLE ") and n[6:].isdigit()]
+  return f"TABLE {(max(numbers) + 1) if numbers else 1}"
+
+# CREATES AND REGISTERS A FRESH TABLE, NAMED AND PATHED BY THE REGISTRY ITSELF.
+def create_table(socketio_init):
+  with _table_registry_lock:
+    name = _next_table_name()
+    t = GameStateMachine(name, socketio_init=socketio_init)
+    t.autosave_path = table_autosave_path(name)
+    t.checkpoint_path = table_checkpoint_path(name)
+    tables[name] = t
+  return t
+
+# BOOT-TIME: POPULATES THE REGISTRY FROM data/tables/<name>/autosave.json ON DISK.
+# ONE-TIME MIGRATION FIRST: IF THE OLD FLAT data/autosave.json (+ checkpoint.json)
+# EXISTS AND THE NEW LAYOUT DOESN'T YET, MOVE THEM INTO data/tables/TABLE 1/ SO A
+# LIVE DEPLOYED GAME SURVIVES THIS CHANGE. A FRESH INSTALL (NEITHER LAYOUT PRESENT)
+# SEEDS ONE EMPTY TABLE SO THE APP ISN'T EMPTY ON FIRST BOOT. RETURNS True IF ANY
+# TABLE WAS ACTUALLY RESTORED FROM A SAVE FILE (DRIVES THE "GAME RESTORED" TOAST).
+def load_tables_from_disk(socketio_init):
+  os.makedirs(TABLES_DIR, exist_ok=True)
+
+  legacy_autosave = os.path.join(DATA_DIR, "autosave.json")
+  legacy_checkpoint = os.path.join(DATA_DIR, "checkpoint.json")
+  if not os.listdir(TABLES_DIR) and os.path.exists(legacy_autosave):
+    legacy_dir = table_dir("TABLE 1")
+    os.makedirs(legacy_dir, exist_ok=True)
+    os.replace(legacy_autosave, table_autosave_path("TABLE 1"))
+    if os.path.exists(legacy_checkpoint):
+      os.replace(legacy_checkpoint, table_checkpoint_path("TABLE 1"))
+    print(f"[MIGRATION] Moved legacy single-table save into {legacy_dir}")
+
+  found_any = False
+  restored_any = False
+  for entry in sorted(os.listdir(TABLES_DIR)):
+    autosave_path = table_autosave_path(entry)
+    if not os.path.isdir(table_dir(entry)) or not os.path.exists(autosave_path):
+      continue
+    found_any = True
+    t = GameStateMachine(entry, socketio_init=socketio_init)
+    t.autosave_path = autosave_path
+    t.checkpoint_path = table_checkpoint_path(entry)
+    if t.restore_state(autosave_path):
+      restored_any = True
+    tables[entry] = t
+
+  if not found_any:
+    create_table(socketio_init) # FRESH INSTALL - SEED ONE EMPTY TABLE
+
+  return restored_any
+
+# ONCE-A-SECOND FAN-OUT (QUEUED FROM main.py): RE-DERIVES THE TARGET LIST FROM THE
+# LIVE REGISTRY EVERY TICK, SO TABLES CREATED/REMOVED AT RUNTIME ARE PICKED UP
+# WITHOUT RE-REGISTERING JOBS. EACH TABLE'S OWN KEEP-ALIVE/IDLE-NUDGE RUNS ON THE
+# SHARED WORKER, SAME AS EVERY OTHER GAME MUTATION.
+def poll_all_tables():
+  for t in list(tables.values()):
+    schedule_t.jobqueue.put(t.is_push_needed)
+    schedule_t.jobqueue.put(t.check_focus_idle)
+  schedule_t.jobqueue.put(reap_empty_tables)
+
+# TEARS DOWN A TABLE: TELLS ANY CONNECTED CLIENT VIA A DEDICATED table_closed EVENT
+# (NOT A TOAST - THE ROOM WON'T EXIST TO PUSH TO AFTERWARDS, SO THE CLIENT WOULD
+# OTHERWISE JUST GO SILENTLY STALE FOREVER), THEN REMOVES IT FROM THE REGISTRY AND
+# DELETES ITS data/tables/<name>/ DIRECTORY. SHARED BY reap_empty_tables() (BELOW) AND
+# THE DEV-ONLY /dev/delete_table ROUTE (MANUAL, ANY TABLE, REGARDLESS OF STATE).
+def delete_table(name, reason):
+  t = tables.get(name)
+  if t is None:
+    return False
+  if t.socketio is not None:
+    t.socketio.emit('table_closed', data={"reason": f"'{name}' has been closed ({reason})"}, room=name)
+  del tables[name]
+  shutil.rmtree(table_dir(name), ignore_errors=True)
+  t.log(f"Removed ({reason})")
+  return True
+
+# EMPTY-TABLE AUTO-REMOVAL: A TABLE IS "EMPTY" WHILE WAITING FOR PLAYERS WITH EVERY
+# SEAT VACANT. _empty_since (TRANSIENT - RESET BY __init__ LIKE EVERY OTHER GAMEPLAY
+# FIELD, SO A GAME-OVER RESET OR AN EXPLICIT REINIT CORRECTLY RESTARTS THE COUNTDOWN
+# RATHER THAN INHERITING STALE TIMING) TRACKS WHEN IT BECAME EMPTY; ONCE THAT'S BEEN
+# TRUE CONTINUOUSLY FOR TABLE_EMPTY_REAP_S, delete_table() REMOVES IT.
+def reap_empty_tables():
+  now = datetime.now()
+  for name in list(tables.keys()):
+    t = tables[name]
+    is_empty = t.state_name() == "WAITING FOR PLAYERS" and all(p.name is None for p in t.players)
+    if not is_empty:
+      t._empty_since = None
+      continue
+    if t._empty_since is None:
+      t._empty_since = now
+      continue
+    if (now - t._empty_since).total_seconds() > TABLE_EMPTY_REAP_S:
+      delete_table(name, f"empty for {TABLE_EMPTY_REAP_S}s+")
 
 class GameStateMachine:
 
@@ -68,6 +188,22 @@ class GameStateMachine:
     self.game_dialog = "" # LATEST CLIENT-FACING MESSAGE - SET ONLY VIA THE dlg_* BUILDERS
     self.socketio = socketio_init
     self.last_push = datetime.now() # DRIVES THE 10s KEEP-ALIVE RE-PUSH
+    # EMPTY-TABLE REAP TRACKING (reap_empty_tables IN THIS MODULE) - TRANSIENT, RESET
+    # HERE UNCONDITIONALLY LIKE EVERY OTHER GAMEPLAY FIELD (UNLIKE autosave_path BELOW):
+    # __init__ ALSO CLEARS EVERY SEAT, SO A FRESH TABLE, A DEV REINIT, AND A GAME-OVER
+    # AUTO-RESET ALL CORRECTLY RESTART THE 5-MINUTE COUNTDOWN FROM THIS EXACT MOMENT
+    self._empty_since = None
+
+    # SAVE-FILE LOCATIONS - SET BY THE TABLE REGISTRY (create_table/load_tables_from_disk)
+    # RIGHT AFTER CONSTRUCTION, NOT A CONSTRUCTOR PARAM (SAME PATTERN AS self.socketio
+    # BEING RE-ASSIGNED POST-CONSTRUCTION IN main.py). DEFAULT None (ONLY IF NOT ALREADY
+    # SET) SO to_dict() NEVER KeyErrors ON A GameStateMachine CONSTRUCTED OUTSIDE THE
+    # REGISTRY - BUT __init__ ALSO RUNS IN PLACE FOR RESET (API/REINIT, GAME-OVER), SO
+    # AN ALREADY-REGISTERED TABLE MUST KEEP ITS PATHS ACROSS THAT, NOT HAVE THEM WIPED
+    if not hasattr(self, "autosave_path"):
+      self.autosave_path = None
+    if not hasattr(self, "checkpoint_path"):
+      self.checkpoint_path = None
 
     # SEAT ORDER IS PLAY ORDER (CLOCKWISE). TEAMS ARE SEAT PARITY: 0+2 vs 1+3.
     # bid.won DOUBLES AS THIS HAND'S TRICK COUNT; table IS THE CARD CURRENTLY PLAYED.
@@ -146,6 +282,8 @@ class GameStateMachine:
         }))
     del dictionary["socketio"]  # NOT SERIALISABLE
     del dictionary["last_push"] # PER-PROCESS TIMING, MEANINGLESS TO CLIENTS AND SAVES
+    del dictionary["autosave_path"]   # DEPLOYMENT DETAIL, SET BY THE TABLE REGISTRY,
+    del dictionary["checkpoint_path"] # NEVER PART OF THE GAME DATA ITSELF
     # UNDERSCORE-PREFIXED FIELDS ARE TRANSIENT BY CONVENTION (E.G. check_focus_idle's
     # _focus_* TRACKING, WHICH HOLDS A datetime) - NEVER PUSHED TO CLIENTS OR SAVED
     for key in [k for k in dictionary if k.startswith("_")]:
@@ -172,12 +310,13 @@ class GameStateMachine:
 
   # PERSISTENCE LAYER: CALLED AT EVERY SAFE CHECKPOINT SO A SERVICE RESTART CAN RESUME THE GAME
   def autosave(self):
-    self.save_state(AUTOSAVE_FILE)
+    if self.autosave_path:
+      self.save_state(self.autosave_path)
 
   def clear_autosave(self):
-    if os.path.exists(AUTOSAVE_FILE):
-      os.remove(AUTOSAVE_FILE)
-      self.log(f"Cleared {os.path.basename(AUTOSAVE_FILE)}.")
+    if self.autosave_path and os.path.exists(self.autosave_path):
+      os.remove(self.autosave_path)
+      self.log(f"Cleared {os.path.basename(self.autosave_path)}.")
 
   # REBUILDS THE GAME IN PLACE FROM A SAVE FILE, RE-QUEUES ANY PENDING AUTO WORK, PUSHES.
   # RETURNS FALSE (AND LEAVES STATE UNTOUCHED) IF THE FILE IS MISSING/CORRUPT/WRONG VERSION.
@@ -213,7 +352,11 @@ class GameStateMachine:
       new_kitty = deck_from(data["kitty"])
 
       self.state = data["state"]
-      self.name = data["name"]
+      # NOTE: self.name IS DELIBERATELY NOT RESTORED FROM data["name"] - THE INSTANCE'S
+      # NAME IS SET ONCE BY THE TABLE REGISTRY AT CONSTRUCTION (IT DOUBLES AS THE
+      # Socket.IO ROOM NAME AND THE data/tables/<name>/ SAVE-DIRECTORY NAME), AND MUST
+      # NEVER CHANGE FROM A RESTORE - data["name"] IS KEPT IN THE SAVE FILE FOR
+      # READABILITY ONLY
       self.game_dialog = data["game_dialog"]
       self.started_at = data["started_at"]
       self.player_focus = data["player_focus"]
@@ -498,11 +641,12 @@ class GameStateMachine:
 
     pass # FELL THROUGH EVERY CHECK - STAY PUT
       
-  # BROADCASTS THE ENTIRE GAME STATE TO EVERY CLIENT. THERE ARE NO PER-EVENT DELTAS -
+  # PUSHES THE ENTIRE GAME STATE TO EVERY CLIENT AT THIS TABLE (room=self.name - THE
+  # Socket.IO ROOM NAME DOUBLES AS THE TABLE NAME). THERE ARE NO PER-EVENT DELTAS -
   # CLIENTS RE-RENDER FROM EACH FULL SNAPSHOT.
   def sio_push(self):
     if self.socketio is not None:
-      self.socketio.emit('game_state', data={**self.to_dict()})
+      self.socketio.emit('game_state', data={**self.to_dict()}, room=self.name)
       self.last_push = datetime.now()
     else:
       pass # NO SOCKET (HEADLESS/TEST USE) - NOTHING TO PUSH TO
@@ -518,13 +662,15 @@ class GameStateMachine:
   # category IS A BOLD ALL-CAPS HEADING RENDERED ABOVE THE MESSAGE (SERVER ERROR /
   # SERVER / GAME MANAGEMENT / PLAYERS). audience="dev" IS COSMETIC CLIENT-SIDE
   # FILTERING ONLY (THE SESSION_IS_DEV FLAG) - CURRENTLY UNUSED (ALL TOASTS GO TO
-  # EVERYONE) BUT KEPT FOR FUTURE USE. NOTHING SENSITIVE MAY EVER RIDE IN A TOAST.
+  # EVERYONE AT THIS TABLE) BUT KEPT FOR FUTURE USE. NOTHING SENSITIVE MAY EVER RIDE
+  # IN A TOAST. room=self.name SCOPES IT TO THIS TABLE ONLY - schedule_t.on_error IS
+  # THE ONE DELIBERATE EXCEPTION (SEE main.py), STILL A PROCESS-WIDE BROADCAST.
   def sio_toast(self, text, kind="info", seconds=4, audience=None, category=None, logit=True):
     if logit:
       self.log(f"[TOAST {kind}] {(category + ': ') if category else ''}{text}")
     if self.socketio is not None:
       self.socketio.emit('toast', data={"text": text, "kind": kind, "seconds": seconds,
-                                        "audience": audience, "category": category})
+                                        "audience": audience, "category": category}, room=self.name)
 
   # ONCE-A-SECOND POLL (QUEUED FROM main.py LIKE is_push_needed): WHEN A HUMAN HAS
   # HELD FOCUS IN A GUI-DRIVEN STATE FOR FOCUS_NUDGE_S, NUDGE THEM WITH A TOAST -

@@ -5,10 +5,10 @@ partnerships, played in the browser. Rules follow the
 [Australian Four-handed Five Hundred](https://www.pagat.com/euchre/500.html) variant as
 described on pagat.com, which is the project's rules reference.
 
-The server is a small Python/Flask app that holds a single authoritative game in memory
-and pushes full game state to every connected browser over Socket.IO. The client is a
-single-page jQuery UI that renders whatever the server sends — no game logic runs in the
-browser.
+The server is a small Python/Flask app that holds any number of concurrent tables in
+memory, each an authoritative game in its own right, and pushes full game state to every
+browser connected to that table over Socket.IO. The client is a single-page jQuery UI
+that renders whatever the server sends — no game logic runs in the browser.
 
 ![Web500 in play](docs/screenshot.png)
 
@@ -17,6 +17,10 @@ browser.
 - **Full four-handed Australian 500 flow** — seating/lobby, dealing (43-card deck with
   joker), bidding, kitty award and discard, trick play, and scoring, driven by a
   server-side state machine.
+- **Multiple tables** — pick an existing table (seeing who's already seated where) or
+  create a new one after logging in; any number can run at once. Generic auto-numbered
+  names ("TABLE 1", "TABLE 2", ...); a full table can't be joined by a newcomer;
+  a table left empty for a while is automatically cleaned up.
 - **Correct special-card handling** — joker as highest trump, left/right bowers,
   follow-suit enforcement including the tricky edge cases (holding only the left bower of
   the led suit, joker when trumps are led, etc.). In No Trumps and Misère, leading the
@@ -44,9 +48,10 @@ browser.
 - **In-game rules reference** — a scrollable rules modal covering the Australian
   four-handed game in plain language (credited to pagat.com), including the game's
   current limitations; reachable from the lobby, scoreboard and settings modals.
-- **Persistence** — the live game autosaves at every safe checkpoint and is restored
-  automatically when the service restarts, so a server bounce doesn't kill the game.
-  A separate manual checkpoint slot supports save/load during development.
+- **Persistence** — every table autosaves at every safe checkpoint and is restored
+  automatically when the service restarts, so a server bounce doesn't kill any game in
+  progress. A separate manual checkpoint slot per table supports save/load during
+  development.
 - **Mobile-friendly** — responsive layout, modals sized for phones in both orientations,
   iOS-specific fixes (non-emoji suit glyphs, homescreen icon).
 - **Natural card layout** — cards sit with a little random offset/rotation (re-rolled
@@ -55,8 +60,9 @@ browser.
 - **User settings** — a settings modal with the Perfect/Natural card layout toggle
   (persisted per browser via localStorage), a clear-saved-settings button (wipes all
   `web500*` localStorage keys and reloads), and logout. Dev users get an extra
-  dev-only section in the same modal (test mode, skip delays, checkpoint save/load/
-  clear, service uptime + restart), rendered server-side only for them.
+  dev-only section in the same modal (a table selector scoping the actions below to
+  any table; test mode, skip delays, checkpoint save/load/clear, table reinit,
+  service uptime + restart), rendered server-side only for them.
 - **Simple auth** — display name + shared game passcode login with signed session
   cookies; every action's identity comes from the server-side session, and the dev
   tools are gated to listed dev users.
@@ -126,23 +132,25 @@ add your display name to `dev_users` if you want the in-game dev tools, then
 `sudo systemctl restart web500.service`.
 
 **5. Play.** Open `http://your-server:4030`, log in with a display name + the
-passcode, and take a seat. The ADD BOTS button fills empty seats with bot players.
+passcode, pick or create a table, and take a seat. The ADD BOTS button fills empty
+seats with bot players.
 
-Restarting the service does **not** lose the game in progress — it is restored from
-`data/autosave.json` at startup.
+Restarting the service does **not** lose any game in progress — every table is
+restored from its own save under `data/tables/` at startup.
 
 **Updating:** `git pull`, then `venv/bin/pip install -r requirements.txt` (in case
 dependencies changed) and restart the service.
 
 ### Player identity & auth
 
-Simple shared-passcode auth. Players log in with a display name + the passcode; a
-signed session cookie (90 days) keeps them in, and their name is their game identity.
-Names are compared case-insensitively but stored and displayed as first written —
-logging in as "HENRY" while "Henry" is seated resumes that seat under the original
-spelling. Socket actions take the name from the server-side session, never from
-client-supplied data, so players can't act as each other. The session-signing key is
-auto-generated into `data/secret_key.txt` so logins survive restarts. `dev_users` in
+Simple shared-passcode auth, table-agnostic — the same login works for every table.
+Players log in with a display name + the passcode; a signed session cookie (90 days)
+keeps them in, and their name is their game identity. Names are compared
+case-insensitively but stored and displayed as first written — logging in as "HENRY"
+while "Henry" is already seated at the table you join resumes that seat under the
+original spelling. Socket actions take the name from the server-side session, never
+from client-supplied data, so players can't act as each other. The session-signing key
+is auto-generated into `data/secret_key.txt` so logins survive restarts. `dev_users` in
 `data/auth.json` lists the names allowed to use the dev endpoints and the settings
 modal's dev section.
 
@@ -150,7 +158,8 @@ modal's dev section.
 
 ```
 main.py               Flask app + Socket.IO event handlers; thin routing layer only
-game_state.py         GameStateMachine — all game rules, state and flow (the core file)
+game_state.py         GameStateMachine — all game rules, state and flow (the core file);
+                      also owns the table registry (any number of tables run at once)
 bots.py               bot players: lobby-seatable PlayerBot (view-restricted, per-bot
                       personality) + the predictable random dev test-mode bot
 playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting
@@ -158,15 +167,18 @@ threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule
                       a failing job logs its traceback and fires the on_error hook
                       (wired to a SERVER ERROR toast); the worker always survives
 dotdict.py            dict subclass with attribute access (players/teams/bids)
-templates/game_client.j2.html   single-page client UI (Jinja2)
-static/game_client.js           client logic: renders pushed state, emits player actions
-data/                 runtime files (gitignored): auth, saves, session key
+templates/game_client.j2.html    single-page client UI for one table (Jinja2)
+templates/choose_table.j2.html   table picker shown between login and the game client
+static/game_client.js            client logic: renders pushed state, emits player actions
+data/                 runtime files (gitignored): auth, session key, data/tables/<name>/
+                      per-table saves
 ```
 
-The server is authoritative; clients never compute game logic. Every connected browser
-receives the entire game state on every push and emits player actions (seat, bid,
-discard, play) back as Socket.IO events. Hiding opponents' cards is a client-side
-rendering concern only.
+The server is authoritative; clients never compute game logic. Every browser connected
+to a table receives that table's entire game state on every push and emits player
+actions (seat, bid, discard, play) back as Socket.IO events, scoped to that table's
+room. Any number of tables can run at once, each independently — pick or create one
+after logging in. Hiding opponents' cards is a client-side rendering concern only.
 
 ### The game state machine
 
@@ -211,9 +223,9 @@ seat could see. Design notes, behaviour model and phase status live in
 
 ## Developing
 
-Everything deeper — running without systemd, the server/client contract,
-state-machine mechanics, dev endpoints and test mode, persistence internals and the
-card encodings — lives in [DEVELOPMENT.md](DEVELOPMENT.md).
+Everything deeper — running without systemd, how multiple tables work, the server/client
+contract, state-machine mechanics, dev endpoints and test mode, persistence internals
+and the card encodings — lives in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Roadmap
 
@@ -367,20 +379,27 @@ carries the diagnostics and fix shapes.
    `state_trans()` (route to re-deal or scoring instead of AWARD KITTY), a new `dlg_*`
    builder, the bidding box UI, and the rules modal.
 
-1. **Multiple tables** — choose a table and spawn another when more than 4 people want
-   to play. High value the moment a fifth player shows up, but it touches the
-   single-game assumption everywhere.
+1. **Observer/spectator mode** — an explicit "just watching" option that only ever
+   sees table cards, bids and the public event log — never any player's hand, even a
+   seated player's own. Distinct from today's implicit spectating (anyone unseated
+   already sees the full push, hands included) - a genuine hand-hiding mode needs
+   server-side filtering, not just client-side hiding.
 
-   _Detail (hard, architectural):_ everything currently assumes one shared
-   `GameStateMachine`: one in-memory instance, one autosave, and every Socket.IO push
-   broadcast to all clients. Multi-table needs: a table registry with a lobby step to
-   pick or create a table; independent join passcodes/codes per table so groups stay
-   separate; per-table Socket.IO rooms (stop broadcasting every game to every client);
-   per-table autosave/checkpoint files; and name deconfliction — the session display
-   name is the identity key today, so the same name at _different_ tables must be
-   allowed (scope identity to table id + name) while still blocked within one table.
-   Dev/test endpoints (`/api/reinit`, `/dev/*`, test mode/bots) also need to become
-   table-aware.
+   _Detail (medium, needs a design decision first):_ today "every client receives every
+   player's hand — hiding opponents' cards is a client-side rendering concern, not a
+   server one" (see CLAUDE.md) is fine for players (each has a real reason to trust the
+   others), but an observer with the raw payload could trivially inspect every hand in
+   the browser console. That means `to_dict()`/`sio_push()` can no longer send one
+   identical payload to the whole room — an observer's push must have every
+   `players[i].hand` (and arguably `kitty`) nulled out server-side before it leaves the
+   process, while seated players keep receiving their own full state. Needs a design
+   decision on the shape: per-viewer filtering at push time (one `to_dict()` per
+   audience — "own hand" vs "hidden") is the honest fix but touches the core
+   `sio_push()` broadcast path meaningfully; a cheaper first cut could restrict observer
+   status to spectators only (never a seated player choosing to self-blind) and filter
+   just their own connection's pushes. Touches: `to_dict()`/`sio_push()` (per-audience
+   payload), the lobby/table-picker UI (an explicit "observe" choice, not just staying
+   unseated), and probably a per-connection flag alongside `session['table_id']`.
 
 1. **Save/restore idle windows** — saves written between "action queued work" and
    "worker ran it" restore into a stuck game; several known windows, all rare races.

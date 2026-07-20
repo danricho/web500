@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en" class="height-100 width-100">
+  <head>
+    <meta charset="utf-8" />
+    <title>Web500 - Choose a Table</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Roboto+Slab:wght@100..900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/vendor/css/normalize.css" />
+    <link rel="stylesheet" href="/static/vendor/css/skeleton.css" />
+    <link rel="icon" type="image/png" href="/static/images/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg" />
+    <link rel="shortcut icon" href="/static/images/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/images/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Web500" />
+    <link rel="manifest" href="/static/images/site.webmanifest" />
+    <link href="/static/layout.css?{{timeNow}}" rel="stylesheet" />
+    <link href="/static/styling.css?{{timeNow}}" rel="stylesheet" />
+    <style>
+      /* NO jQuery/SOCKET.IO - PLAIN VANILLA JS RE-RENDERS #table-list EVERY 3s
+         (SEE THE SCRIPT BELOW), SO SEATS TAKEN BY OTHERS DON'T GO STALE HERE */
+      .table-list {
+        text-align: left;
+        margin: 1.5rem 0;
+      }
+      .table-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.6rem 0.8rem;
+        margin: 0.4rem 0;
+        border: 1px solid var(--primary-color);
+        border-radius: 8px;
+      }
+      /* .table-row .table-seats {
+        font-size: 0.95rem;
+        opacity: 0.85;
+        line-height: 1.5;
+      } */
+      .table-row form {
+        margin: 0;
+        flex-shrink: 0;
+      }
+      .table-row button {
+        margin: 0;
+      }
+    </style>
+  </head>
+
+  <body class="height-100 width-100">
+    <div class="pos-rel height-100 width-100">
+      <div class="bg-cross-pattern height-100 width-100"></div>
+
+      <div class="pos-abs top-left text-center height-100 width-100 z-lobby">
+        <div class="pos-rel top-left height-100 width-100">
+          <div class="pos-abs middle-center light-on-darker border-rounded enable-mouse modal-box modal-box-border">
+            <div>
+              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 100 73.54" style="width: 80px" fill="currentColor">
+                <path
+                  d="M99.7,0.02H82.04c-0.37,0-0.71,0.22-0.86,0.56l-14.71,34.1c-0.19,0.44-0.79,0.52-1.08,0.13L50.3,14.92
+                c-0.15-0.2-0.45-0.2-0.6,0L34.61,34.81c-0.29,0.38-0.89,0.31-1.08-0.13L18.82,0.58c-0.15-0.34-0.48-0.56-0.86-0.56H0.3
+                c-0.14,0-0.24,0.15-0.18,0.28l31.15,72.86c0.1,0.23,0.33,0.39,0.58,0.39h8.71c0.25,0,0.48-0.12,0.63-0.32l5.17-7.11
+                c0,0-6.09,2.19-8.97-2.26c-3.05-4.71,0.63-8.79,0.63-8.79l11.42-14.27c0.29-0.36,0.83-0.36,1.12,0l11.42,14.27
+                c0,0,3.68,4.08,0.63,8.79c-2.88,4.45-8.97,2.26-8.97,2.26l5.17,7.11c0.15,0.2,0.38,0.32,0.63,0.32h8.71c0.25,0,0.48-0.15,0.58-0.39
+                L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z" />
+              </svg>
+              <div style="font-size: 4rem; font-weight: bold">
+                Web
+                <span style="color: var(--primary-color)">500</span>
+              </div>
+            </div>
+            <h5 class="my-3">Choose a Table, {{ session_username }}</h5>
+
+            <!-- RENDERED BY JS (renderTables() BELOW) - THE INITIAL PAINT USES
+                 INITIAL_TABLES, A SERVER-EMBEDDED SNAPSHOT, SO THERE'S ONE RENDERING
+                 CODE PATH (NOT ONE IN JINJA AND A SEPARATE ONE IN JS) - THAT'S WHAT
+                 KEEPS BOT-NAME ICON SUBSTITUTION (SEE displayName BELOW) CORRECT ON
+                 BOTH THE FIRST PAINT AND EVERY 3s REFRESH -->
+            <div class="table-list" id="table-list">
+              <p class="italic">Loading tables...</p>
+            </div>
+
+            <form method="get" action="/api/create_table">
+              <button type="submit">CREATE NEW TABLE</button>
+            </form>
+
+            <div class="modal-meta">
+              <small>
+                Logged in as {{ session_username }} -
+                <a href="/logout">logout</a>
+                <br />
+                {{ version }} -
+                <a href="https://github.com/danricho/web500" target="_blank">GitHub</a>
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // PLAIN VANILLA JS (NO jQuery, NO SOCKET.IO - THIS PAGE STAYS DELIBERATELY
+      // LIGHT, SAME SPIRIT AS login.j2.html). RENDERS THE TABLE LIST ONCE FROM
+      // INITIAL_TABLES (A SERVER-EMBEDDED SNAPSHOT - AVOIDS AN IMMEDIATE REDUNDANT
+      // FETCH RIGHT AFTER THE PAGE ALREADY HAD THE DATA), THEN RE-FETCHES /api/tables
+      // EVERY FEW SECONDS SO SEAT CHANGES MADE BY OTHERS WHILE THIS PAGE SITS OPEN
+      // DON'T GO STALE.
+      var INITIAL_TABLES = {{ tables | tojson }};
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+      // BOT NAMES ARRIVE AS "B|Name" / DEV TEST-MODE BOTS AS "D|NAME" - SAME SCHEME
+      // AND SAME SVG MARKUP AS displayName()/BOT_ICON_SVG/DEV_BOT_ICON_SVG IN
+      // game_client.js (DUPLICATED HERE RATHER THAN SHARED, SAME PRECEDENT AS
+      // cards_review.j2.html's OWN FILL-LOGIC MIRROR - THIS PAGE DELIBERATELY DOESN'T
+      // LOAD game_client.js). KEEP IN SYNC IF THE ICONS CHANGE THERE.
+      var BOT_ICON_SVG =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1.1rem" height="1.1rem" fill="currentColor" class="bot-icon" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135"/><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5"/></svg> ';
+      var DEV_BOT_ICON_SVG =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1.1rem" height="1.1rem" fill="currentColor" stroke="currentColor" stroke-width="1" class="bot-icon" viewBox="-1 -1 18 18"><path fill-rule="evenodd" d="M3.05 3.05a7 7 0 0 0 0 9.9.5.5 0 0 1-.707.707 8 8 0 0 1 0-11.314.5.5 0 1 1 .707.707m9.9-.707a.5.5 0 0 1 .707 0 8 8 0 0 1 0 11.314.5.5 0 0 1-.707-.707 7 7 0 0 0 0-9.9.5.5 0 0 1 0-.707M6 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m5-6.5a.5.5 0 0 0-1 0v2.117L8.257 5.57a.5.5 0 0 0-.514.858L9.528 7.5 7.743 8.571a.5.5 0 1 0 .514.858L10 8.383V10.5a.5.5 0 1 0 1 0V8.383l1.743 1.046a.5.5 0 0 0 .514-.858L11.472 7.5l1.785-1.071a.5.5 0 1 0-.514-.858L11 6.617z"/></svg> ';
+      function displayName(name) {
+        if (!name) return "—";
+        return escapeHtml(name)
+          .replace(/B\|/g, BOT_ICON_SVG)
+          .replace(/D\|/g, DEV_BOT_ICON_SVG);
+      }
+
+      function renderTables(list) {
+        var container = document.getElementById("table-list");
+        if (list.length === 0) {
+          container.innerHTML =
+            '<p class="italic">No tables yet - create the first one below.</p>';
+          return;
+        }
+        var html = "";
+        list.forEach(function (t) {
+          var seats =
+            "Team 1: " + displayName(t.players[0]) + ", " + displayName(t.players[2]) + "<br>" +
+            "Team 2: " + displayName(t.players[1]) + ", " + displayName(t.players[3]);
+          var action;
+          if (t.already_seated || !t.full) {
+            action =
+              '<form method="get" action="/api/select_table">' +
+              '<input type="hidden" name="id" value="' + escapeHtml(t.name) + '">' +
+              '<button type="submit" class="button-success">' +
+              (t.already_seated ? "REJOIN" : "JOIN") +
+              "</button></form>";
+          } else {
+            action = '<span class="italic" style="opacity: 0.7">FULL</span>';
+          }
+          html +=
+            '<div class="table-row"><div><div class="bold" style="color: var(--primary-color-light)">' +
+            escapeHtml(t.name) +
+            ' <small class="italic">(' + escapeHtml(t.state) + ")</small></div>" +
+            '<div class="table-seats">' + seats + "</div></div>" + action + "</div>";
+        });
+        container.innerHTML = html;
+      }
+      function refreshTables() {
+        fetch("/api/tables")
+          .then(function (r) { return r.json(); })
+          .then(renderTables)
+          .catch(function () {}); // a transient fetch failure just skips this refresh
+      }
+      renderTables(INITIAL_TABLES);
+      setInterval(refreshTables, 3000);
+    </script>
+  </body>
+</html>

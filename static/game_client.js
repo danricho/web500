@@ -68,11 +68,68 @@ RANK_DISP = [
 // THIS FLAG ONLY CONTROLS UI VISIBILITY; THE /dev/* ENDPOINTS ENFORCE FOR REAL.
 var username = typeof SESSION_USERNAME !== "undefined" ? SESSION_USERNAME : "";
 var isDevUser = typeof SESSION_IS_DEV !== "undefined" ? SESSION_IS_DEV : false;
+// PINNED PER PAGE-LOAD (NOT RE-READ FROM THE LIVE SESSION) - SEE THE io() CALL BELOW
+var tableId = typeof TABLE_ID !== "undefined" ? TABLE_ID : "";
 
 // SET FROM /dev/uptime EACH TIME A DEV OPENS THE SETTINGS MODAL - THE SERVER'S RESTART_COMMAND
 // CAN BE None, IN WHICH CASE THE RESTART BUTTON HAS NOTHING TO DO
 var restartEnabled = false;
 
+// DEV TABLE SELECTOR VALUE, APPENDED TO EVERY DEV-SCOPED /dev/* CALL SO A DEV CAN
+// ACT ON ANY TABLE VIA #dev-table-select, NOT JUST THEIR OWN (THE SERVER FALLS BACK
+// TO THE DEV'S OWN SESSION TABLE IF THIS IS EVER MISSING/EMPTY). NOTE THIS ONLY
+// SCOPES THE ADMIN ACTION ITSELF - IT DOESN'T MOVE THIS BROWSER'S OWN LIVE VIEW
+function devTableQuery() {
+  var t = $("#dev-table-select").val();
+  return t ? "?table=" + encodeURIComponent(t) : "";
+}
+// devTablesData: name -> {test_mode, skip_delays, ...} FROM THE LAST /api/tables FETCH
+// (SEE refreshDevTableSelect). lastPushData: THE MOST RECENT game_state PUSH - ONLY
+// EVER FOR *THIS BROWSER'S OWN* TABLE (tableId). TOGETHER THEY LET
+// updateDevModeLabels() SHOW THE RIGHT TEST MODE / SKIP DELAYS STATE FOR WHICHEVER
+// TABLE IS CURRENTLY PICKED IN #dev-table-select, NOT JUST THIS BROWSER'S OWN.
+var devTablesData = {};
+var lastPushData = null;
+function updateDevModeLabels() {
+  var selected = $("#dev-table-select").val();
+  var info =
+    selected === tableId && lastPushData
+      ? { test_mode: lastPushData.test_mode, skip_delays: lastPushData.skip_delays }
+      : devTablesData[selected];
+  if (!info) return; // nothing known yet for that table - leave the label as-is
+  $("#toggle-test").text("TEST MODE: " + (info.test_mode ? "ON" : "OFF"));
+  $("#toggle-skip-delays").text(
+    "SKIP DELAYS: " + (info.skip_delays ? "ON" : "OFF"),
+  );
+}
+// RE-FETCHES /api/tables, REBUILDS #dev-table-select AND devTablesData, THEN CALLS
+// updateDevModeLabels(). CALLED (a) EVERY TIME THE SETTINGS MODAL OPENS - SAME
+// "RE-ASK ON OPEN" PATTERN AS startUptime(), CATCHES A TABLE CREATED/DELETED SINCE
+// PAGE LOAD (THE OPTION LIST IS OTHERWISE ONLY EVER SERVER-RENDERED ONCE) - AND
+// (b) RIGHT AFTER THE dev/test AND dev/skipdelays TOGGLE BUTTONS' AJAX CALLS COMPLETE
+// (SEE THEIR onclick HANDLERS ABOVE), SINCE TOGGLING A TABLE OTHER THAN THIS
+// BROWSER'S OWN NEVER ARRIVES VIA THE LIVE game_state PUSH - WITHOUT THIS THE TEST
+// MODE / SKIP DELAYS LABELS WOULD SHOW STALE STATE FOR THAT TABLE UNTIL THE MODAL
+// WAS CLOSED AND REOPENED. PRESERVES THE CURRENT SELECTION IF IT STILL EXISTS, ELSE
+// FALLS BACK TO THIS BROWSER'S OWN TABLE.
+function refreshDevTableSelect() {
+  if (!isDevUser) return;
+  $.getJSON("/api/tables").done(function (list) {
+    var current = $("#dev-table-select").val();
+    devTablesData = {};
+    var html = "";
+    list.forEach(function (t) {
+      devTablesData[t.name] = t;
+      html += "<option value=\"" + escapeHtml(t.name) + "\">" + escapeHtml(t.name) + "</option>";
+    });
+    $("#dev-table-select").html(html);
+    var stillExists = list.some(function (t) {
+      return t.name === current;
+    });
+    $("#dev-table-select").val(stillExists ? current : tableId);
+    updateDevModeLabels();
+  });
+}
 // NAMES ARE COMPARED CASE-INSENSITIVELY (SERVER DOES THE SAME VIA same_name())
 function sameName(a, b) {
   return (
@@ -372,6 +429,11 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
   $("#disconnected-icon").toggle(!connected);
   $("#disconnected-modal").toggle(!connected);
   $(".reinit").toggle(connected);
+  $("#dev-reinit").toggle(connected);
+  $("#dev-delete-table").toggle(connected);
+  // ONLY WHILE WAITING FOR PLAYERS - THAT'S THE ONLY STATE api/change_table CAN
+  // PROPERLY VACATE THE SEAT IN, RATHER THAN LEAVING IT ORPHANED
+  $(".change-table").toggle(connected && gameState == "WAITING FOR PLAYERS");
   $("#toggle-test").toggle(connected);
   $("#toggle-skip-delays").toggle(connected);
   $("#save-checkpoint").toggle(connected);
@@ -709,11 +771,11 @@ function processGameStateData(data) {
       .addClass(SUIT_COL[data.trumps] || "");
   }
 
-  // DEV: show mode states as text rather than ambiguous red/green colouring
-  $("#toggle-test").text("TEST MODE: " + (data.test_mode ? "ON" : "OFF"));
-  $("#toggle-skip-delays").text(
-    "SKIP DELAYS: " + (data.skip_delays ? "ON" : "OFF"),
-  );
+  // DEV: show mode states as text rather than ambiguous red/green colouring.
+  // lastPushData/updateDevModeLabels ALSO HANDLE #dev-table-select POINTING AT A
+  // TABLE OTHER THAN THIS BROWSER'S OWN (data HERE IS ALWAYS THIS TABLE'S PUSH ONLY)
+  lastPushData = data;
+  updateDevModeLabels();
 
   // label and update seat selection buttons. Scoped to .seat-select: the div also
   // holds the ADD BOTS button, and indexing order2seati past 3 would crash the render
@@ -1208,8 +1270,10 @@ $(document).ready(function () {
     "f-green bg-lighter border-rounded",
   );
 
-  // socketio based long polling
-  var socket = io();
+  // socketio based long polling. table_id ON THE QUERY STRING IS RE-SENT UNCHANGED
+  // ON EVERY RECONNECT (NOT JUST THE INITIAL CONNECT), WHICH IS WHAT KEEPS THIS
+  // SOCKET PINNED TO THE TABLE THE PAGE WAS RENDERED FOR (SEE main.py's connect HANDLER)
+  var socket = io({ query: { table_id: tableId } });
 
   // Socket.IO long-polling drops and reconnects in normal operation, so a raw
   // disconnect event flashes the "disconnected" screen for a second. Debounce it:
@@ -1270,6 +1334,15 @@ $(document).ready(function () {
     );
   });
 
+  // THIS TABLE WAS REMOVED SERVER-SIDE (EMPTY-TABLE REAP, game_state.py's
+  // reap_empty_tables) - THE ONLY WAY TO STILL BE CONNECTED HERE IS AS A LINGERING
+  // SPECTATOR (A SEATED PLAYER KEEPS THE TABLE FROM EVER COUNTING AS EMPTY). THE ROOM
+  // WON'T RECEIVE ANY FURTHER PUSHES, SO GO STRAIGHT BACK TO THE TABLE PICKER RATHER
+  // THAN SIT ON A PAGE THAT WILL NEVER UPDATE AGAIN.
+  socket.on("table_closed", function (data) {
+    window.location.href = "/";
+  });
+
   $(".unforce-scores").click(function () {
     forceScoreboardDisplay = false;
     $("#scores-modal").toggle(
@@ -1302,10 +1375,15 @@ $(document).ready(function () {
 
   $(".show-settings").click(function () {
     $("#settings-modal").toggle();
-    // DEV SECTION LIVES IN THIS MODAL: RE-ASK /dev/uptime ON EVERY OPEN
-    if (isDevUser && $("#settings-modal").is(":visible")) startUptime();
-    else stopUptime();
+    // DEV SECTION LIVES IN THIS MODAL: RE-ASK /dev/uptime AND REFRESH THE TABLE
+    // SELECTOR ON EVERY OPEN (SAME RATIONALE AS THE UPTIME RE-ASK - CATCHES A TABLE
+    // CREATED/DELETED SINCE PAGE LOAD)
+    if (isDevUser && $("#settings-modal").is(":visible")) {
+      startUptime();
+      refreshDevTableSelect();
+    } else stopUptime();
   });
+  $("#dev-table-select").change(updateDevModeLabels);
 
   $(".hide-settings").click(function () {
     $("#settings-modal").hide();
@@ -1405,19 +1483,37 @@ $(document).ready(function () {
       $.ajax({ url: "/api/reinit" });
     });
   });
+  $("#dev-reinit").click(function () {
+    confirmThen(this, function () {
+      $.ajax({ url: "/dev/reinit" + devTableQuery() });
+    });
+  });
+  $("#dev-delete-table").click(function () {
+    confirmThen(this, function () {
+      $.ajax({ url: "/dev/delete_table" + devTableQuery() });
+      // THE DROPDOWN NOW HAS A STALE (DELETED) ENTRY UNTIL THE MODAL NEXT REOPENS -
+      // REFRESH IT NOW SO IT DOESN'T LINGER SELECTABLE
+      refreshDevTableSelect();
+    });
+  });
+  $(".change-table").click(function () {
+    confirmThen(this, function () {
+      window.location.href = "/api/change_table";
+    });
+  });
   $("#save-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/save" });
+      $.ajax({ url: "/dev/save" + devTableQuery() });
     });
   });
   $("#load-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/load" });
+      $.ajax({ url: "/dev/load" + devTableQuery() });
     });
   });
   $("#clear-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/clearchk" });
+      $.ajax({ url: "/dev/clearchk" + devTableQuery() });
     });
   });
   $("#clear-local-data").click(function () {
