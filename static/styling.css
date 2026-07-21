@@ -291,19 +291,6 @@ button.attention {
   align-items: center;
 }
 
-/* BOT/DEV-BOT NAME-PREFIX ICON (svg.js PREFIX_ICON_SVG). align-items: center
-   ALONE DOES NOTHING HERE - THE SPAN SHRINKS TO FIT ITS ONE SVG CHILD, SO
-   THERE'S NO EXTRA HEIGHT TO CENTER WITHIN. THE ACTUAL FIX IS vertical-align:
-   middle ON THE SPAN ITSELF: THIS ONE SITS DIRECTLY IN RUNNING TEXT (A PLAYER
-   NAME), NOT A DEDICATED ROW LIKE .dealer-chip/.bid-winner ABOVE, SO ITS
-   DEFAULT baseline ALIGNMENT PINS THE SPAN'S BOTTOM EDGE TO THE TEXT
-   BASELINE - PUSHING A TALLER ICON VISIBLY ABOVE THE TEXT'S OWN CENTER. */
-.bot-icon-span {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-}
-
 /* TRUMP SUIT INDICATOR (TOP RIGHT) - A BORDERLESS, NON-CLICKABLE BUTTON FACE */
 #trump-indicator button {
   border: none;
@@ -1021,14 +1008,18 @@ select:focus {
 }
 
 /* robot icon (rendered for the B|/D| bot-name prefixes, see svg.js
-   PREFIX_ICON_SVG) - vertical centering against the surrounding name text
-   comes from the wrapping .bot-icon-span flex container above, not from
-   vertical-align here. Size lives here (not baked into the SVG markup) so a
-   page can override it - see choose_table.j2.html's tighter table-list
-   variant */
+   PREFIX_ICON_SVG) - Bootstrap Icons' own documented convention for an icon
+   inline with text: size in em (so it scales WITH whatever text it's next to -
+   a big focused-player banner or a small <small> table header - instead of a
+   fixed rem staying pinned to the root size regardless of context) plus a
+   small negative vertical-align nudge (-0.125em is Bootstrap's own documented
+   default for a 1em icon). Both numbers move together as font-size changes,
+   so it stays centered on the text baseline at any scale - no wrapping flex
+   span needed. */
 .bot-icon {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
 }
 
 /* SERVER-SENT TOASTS - TOP-RIGHT STACK, COLOURED BY kind, FADE OUT VIA .toast-hide */

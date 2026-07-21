@@ -27,17 +27,15 @@ var SUIT_ICON_SVG = {
 
 // PREFIX ICONS — player names arrive from the server as "PREFIX|Name" (bot
 // markers, see CLAUDE.md "Player bots" / "Admin endpoints"); displayName()
-// swaps the prefix for one of these. Each is wrapped in a ".bot-icon-span"
-// (styling.css - same flex-centering pattern as .dealer-chip/.bid-winner) so
-// the icon sits vertically centered against the surrounding name text instead
-// of drifting off the text baseline; the trailing space after the span is
-// deliberate (visual gap before the name text). Icon sized by the ".bot-icon"
-// CSS class rather than baked-in width/height, so a page can override the
-// size (e.g. choose_table.j2.html's tighter table-list) without forking the
-// markup.
+// swaps the prefix for one of these. No wrapping span - sized/aligned directly
+// on the <svg> via the ".bot-icon" CSS class (Bootstrap Icons' own documented
+// inline-with-text convention: em-based size + a small negative vertical-align
+// offset, both scaling together so it stays centered against the surrounding
+// text at any font-size - see styling.css). Trailing space after each svg is
+// deliberate (visual gap before the name text).
 var PREFIX_ICON_SVG = {
-  "B|": '<span class="bot-icon-span"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bootstrap-icons bi-robot bot-icon" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135"/><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5"/></svg></span> ',
-  "D|": '<span class="bot-icon-span"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bootstrap-icons bi-nut-fill bot-icon" viewBox="0 0 16 16"><path d="M4.58 1a1 1 0 0 0-.868.504l-3.428 6a1 1 0 0 0 0 .992l3.428 6A1 1 0 0 0 4.58 15h6.84a1 1 0 0 0 .868-.504l3.429-6a1 1 0 0 0 0-.992l-3.429-6A1 1 0 0 0 11.42 1zm5.018 9.696a3 3 0 1 1-3-5.196 3 3 0 0 1 3 5.196"/></svg></span> ',
+  "B|": '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bootstrap-icons bi-robot bot-icon" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135"/><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5"/></svg> ',
+  "D|": '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bootstrap-icons bi-nut-fill bot-icon" viewBox="0 0 16 16"><path d="M4.58 1a1 1 0 0 0-.868.504l-3.428 6a1 1 0 0 0 0 .992l3.428 6A1 1 0 0 0 4.58 15h6.84a1 1 0 0 0 .868-.504l3.429-6a1 1 0 0 0 0-.992l-3.429-6A1 1 0 0 0 11.42 1zm5.018 9.696a3 3 0 1 1-3-5.196 3 3 0 0 1 3 5.196"/></svg> ',
 };
 
 // APPEND ICONS — 24x24 toolbar-style icons (materialdesignicons.com), only
