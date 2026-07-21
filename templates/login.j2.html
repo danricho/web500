@@ -69,29 +69,58 @@
                 Web<span style="color: var(--primary-color)">500</span>
               </div>
             </div>
-            <h5 class="my-3">Login</h5>
-            <form method="post" action="/login">
-              <p class="mb-2">Your name:</p>
-              <input
-                type="text"
-                name="name"
-                maxlength="20"
-                autocomplete="username"
-                autofocus
-              />
-              <p class="mb-2">Game passcode:</p>
-              <input
-                type="password"
-                name="passcode"
-                autocomplete="current-password"
-              />
-              {% if error %}
-              <p class="c-danger mb-2">{{ error }}</p>
-              {% endif %}
-              <div>
-                <button type="submit">Enter</button>
-              </div>
-            </form>
+
+            <fieldset
+              class="p-3 my-3 border-rounded"
+              style="border: 1px solid var(--primary-color)"
+            >
+              <legend
+                class="bold"
+                style="
+                  color: var(--primary-color-light);
+                  background-color: var(--bg-darker);
+                  padding: 0 1rem;
+                  margin-bottom: -1rem;
+                "
+              >
+                Log In
+              </legend>
+              <p class="my-4">Welcome! Please log in.</p>
+              <form method="post" action="/login" style="margin: 0">
+                <p class="mb-2" style="font-weight: bold">Your name:</p>
+                <input
+                  type="text"
+                  name="name"
+                  maxlength="20"
+                  autocomplete="username"
+                  autofocus
+                  style="width: 100%; max-width: 280px; margin: 0.375rem auto"
+                />
+                <p class="mt-4 mb-2" style="font-weight: bold">
+                  Game passcode:
+                </p>
+                <input
+                  type="password"
+                  name="passcode"
+                  autocomplete="current-password"
+                  style="
+                    width: 100%;
+                    max-width: 280px;
+                    margin: 0.375rem 0 0.375rem;
+                  "
+                />
+                {% if error %}
+                <p class="c-danger mb-2 mt-4" style="font-weight: bold">
+                  {{ error }}
+                </p>
+                {% endif %}
+
+                <div class="modal-actions mt-4">
+                  <button type="submit">Enter</button>
+                </div>
+              </form>
+            </fieldset>
+
             <div class="modal-meta">
               <small
                 >Created by

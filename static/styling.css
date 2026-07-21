@@ -820,6 +820,7 @@ select:focus {
   max-height: 92vh;
   overflow: auto;
   padding: 3rem;
+  padding-bottom: 1rem;
 }
 .modal-box-border {
   border: 1px solid var(--border-subtle);
@@ -847,7 +848,7 @@ select:focus {
 }
 /* footer meta block (rules link / credit / user email) */
 .modal-meta {
-  margin-top: 1.25rem;
+  margin-top: 3rem;
   line-height: 1.6;
 }
 .modal-meta small {
@@ -858,6 +859,7 @@ select:focus {
 @media (max-width: 600px), (max-height: 500px) {
   .modal-box {
     padding: 3rem 1rem;
+    padding-bottom: 1rem;
     max-height: 94vh;
   }
 }

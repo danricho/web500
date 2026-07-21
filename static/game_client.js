@@ -63,7 +63,8 @@ RANK_DISP = [
 // ADMIN STATUS IS SERVER-COMPUTED FROM auth.json admin_users (SINGLE SOURCE OF TRUTH) -
 // THIS FLAG ONLY CONTROLS UI VISIBILITY; THE /admin/* ENDPOINTS ENFORCE FOR REAL.
 var username = typeof SESSION_USERNAME !== "undefined" ? SESSION_USERNAME : "";
-var isAdminUser = typeof SESSION_IS_ADMIN !== "undefined" ? SESSION_IS_ADMIN : false;
+var isAdminUser =
+  typeof SESSION_IS_ADMIN !== "undefined" ? SESSION_IS_ADMIN : false;
 // PINNED PER PAGE-LOAD (NOT RE-READ FROM THE LIVE SESSION) - SEE THE io() CALL BELOW
 var tableId = typeof TABLE_ID !== "undefined" ? TABLE_ID : "";
 
@@ -1240,10 +1241,14 @@ function processGameStateData(data) {
   // NEVER MANGLES THE <br> INTO &lt;br&gt; - .html() + displayName SO BOT NAMES
   // RENDER THE ROBOT ICON
   $(".team-1-players").html(
-    displayName(data.players[0].name) + "<br>" + displayName(data.players[2].name),
+    displayName(data.players[0].name) +
+      "<br>" +
+      displayName(data.players[2].name),
   );
   $(".team-2-players").html(
-    displayName(data.players[1].name) + "<br>" + displayName(data.players[3].name),
+    displayName(data.players[1].name) +
+      "<br>" +
+      displayName(data.players[3].name),
   );
 }
 
@@ -1434,17 +1439,17 @@ $(document).ready(function () {
         restartEnabled = !!data.restart_enabled;
         $("#restart-service").toggle(restartEnabled);
         $("#service-uptime").text(
-          "SERVICE UPTIME: " + formatUptime(uptimeSeconds),
+          "Service Uptime: " + formatUptime(uptimeSeconds),
         );
         uptimeTimer = setInterval(function () {
           uptimeSeconds += 1;
           $("#service-uptime").text(
-            "SERVICE UPTIME: " + formatUptime(uptimeSeconds),
+            "Service Uptime: " + formatUptime(uptimeSeconds),
           );
         }, 1000);
       })
       .fail(function () {
-        $("#service-uptime").text("SERVICE UPTIME: unavailable");
+        $("#service-uptime").text("Service Uptime: unavailable");
       });
   }
 
@@ -1529,7 +1534,7 @@ $(document).ready(function () {
       // STOP THE TICKER, THEN POLL /admin/uptime UNTIL THE SERVICE IS BACK AND RESTART
       // THE DISPLAY FROM THE FRESH (NEAR-ZERO) VALUE.
       stopUptime();
-      $("#service-uptime").text("SERVICE UPTIME: restarting...");
+      $("#service-uptime").text("Service Uptime: restarting...");
       $.ajax({ url: "/admin/restart" });
       var retries = 10;
       var restartPoll = setInterval(function () {

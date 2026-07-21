@@ -111,7 +111,7 @@
               x="0px"
               y="0px"
               viewBox="0 0 100 73.54"
-              style="width: 300px; opacity: 5%"
+              style="width: 200px; opacity: 5%"
               fill="currentColor"
             >
               <path
@@ -123,10 +123,12 @@
                 L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z"
               />
             </svg>
-            <div class="" style="font-size: 8rem; font-weight: bold">
+            <div class="" style="font-size: 6rem; font-weight: bold">
               <!-- prettier-ignore -->
               <span style="opacity: 5%">Web</span
-              ><span style="color: var(--primary-color); opacity: 10%">500</span>
+              ><span style="color: var(--primary-color); opacity: 10%"
+                >500</span
+              >
             </div>
           </div>
           <div
@@ -714,23 +716,27 @@
                   USER SETTINGS
                 </legend>
                 <p class="bold mt-2 mb-2">
-                  Logged in as
-                  <span class="italic">{{ session_username }}</span>
+                  Logged in as:
+                  <span>{{ session_username }}</span>
                 </p>
-                <button type="button" id="logout" class="button-small mb-3">
+                <button type="button" id="logout" class="button-small">
                   LOG OUT
                 </button>
                 <button
                   type="button"
                   id="toggle-card-layout"
-                  class="button-small btn-outline-secondary"
+                  class="button-small btn-outline-secondary mt-4"
                   onclick="event.preventDefault()"
                 >
                   CARDS: NATURAL
                 </button>
-                <div class="modal-btn-row mt-4">
-                  <button type="button" id="clear-local-data" class="button-small">
-                    CLEAR SAVED SETTINGS
+                <div class="modal-btn-row">
+                  <button
+                    type="button"
+                    id="clear-local-data"
+                    class="button-small"
+                  >
+                    CLEAR SETTINGS
                   </button>
                   <!-- manual browser refresh (handy on iOS where a stale client needs
                        a reload) -->
@@ -745,7 +751,7 @@
                    SCOPED BY #admin-table-select - THIS ONE IS HIDDEN FOR THEM INSTEAD -->
               <button
                 type="button"
-                class="reinit button-small mt-4"
+                class="reinit button-small"
                 style="display: none"
               >
                 REINITIALISE TABLE
@@ -806,7 +812,7 @@
                     DELETE TABLE
                   </button>
                 </div>
-                <div class="modal-btn-row">
+                <div class="modal-btn-row mt-3">
                   <button
                     type="button"
                     id="toggle-test"
@@ -830,26 +836,27 @@
                     class="button-small"
                     onclick="
                       event.preventDefault();
-                      $.ajax({ url: '/admin/skipdelays' + adminTableQuery() }).done(
-                        function () {
-                          $.ajax({ url: '/api/client_trigger_push' });
-                          refreshAdminTableSelect();
-                        },
-                      );
+                      $.ajax({
+                        url: '/admin/skipdelays' + adminTableQuery(),
+                      }).done(function () {
+                        $.ajax({ url: '/api/client_trigger_push' });
+                        refreshAdminTableSelect();
+                      });
                     "
                     style="display: none"
                   >
                     SKIP DELAYS: OFF
                   </button>
                 </div>
-                <div class="modal-btn-row mt-4">
+                <div class="bold mt-3">Checkpoint</div>
+                <div class="modal-btn-row">
                   <button
                     type="button"
                     id="save-checkpoint"
                     class="button-small"
                     style="display: none"
                   >
-                    SAVE CHECKPOINT
+                    SAVE
                   </button>
                   <button
                     type="button"
@@ -857,19 +864,20 @@
                     class="button-small"
                     style="display: none"
                   >
-                    LOAD CHECKPOINT
+                    LOAD
+                  </button>
+                  <button
+                    type="button"
+                    id="clear-checkpoint"
+                    class="button-small"
+                    style="display: none"
+                  >
+                    CLEAR
                   </button>
                 </div>
-                <button
-                  type="button"
-                  id="clear-checkpoint"
-                  class="button-small"
-                  style="display: none"
-                >
-                  CLEAR CHECKPOINT
-                </button>
-                <div id="service-uptime" class="bold mt-4">
-                  SERVICE UPTIME: --
+
+                <div id="service-uptime" class="bold mt-5">
+                  Service Uptime: --
                 </div>
                 <button
                   type="button"
@@ -1000,7 +1008,9 @@
                   </tbody>
                 </table>
                 <p class="mt-3" style="color: var(--primary-color-light)">
-                  <small>Slam: winning all 10 tricks scores at least 250.</small>
+                  <small
+                    >Slam: winning all 10 tricks scores at least 250.</small
+                  >
                 </p>
                 <p style="color: var(--primary-color-light)">
                   <small>Non-contract team scores 10 per trick won.</small>

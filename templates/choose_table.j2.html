@@ -55,11 +55,6 @@
         justify-content: space-between;
         gap: 1rem;
       }
-      /* .table-row .table-seats {
-        font-size: 0.95rem;
-        opacity: 0.85;
-        line-height: 1.5;
-      } */
       .table-row form {
         margin: 0;
         flex-shrink: 0;
@@ -67,8 +62,6 @@
       .table-row button {
         margin: 0;
       }
-      /* NO .bot-icon OVERRIDE NEEDED HERE ANY MORE - THE SHARED RULE (styling.css)
-         IS ALREADY 1em, Bootstrap Icons' OWN DOCUMENTED DEFAULT RATIO */
     </style>
   </head>
 
@@ -108,28 +101,29 @@
             </div>
             <h5 class="my-3">Choose a Table, {{ session_username }}</h5>
 
-            <!-- RENDERED BY JS (renderTables() BELOW) - THE INITIAL PAINT USES
-                 INITIAL_TABLES, A SERVER-EMBEDDED SNAPSHOT, SO THERE'S ONE RENDERING
-                 CODE PATH (NOT ONE IN JINJA AND A SEPARATE ONE IN JS) - THAT'S WHAT
-                 KEEPS BOT-NAME ICON SUBSTITUTION (SEE displayName BELOW) CORRECT ON
-                 BOTH THE FIRST PAINT AND EVERY 3s REFRESH -->
-            <div class="table-list" id="table-list">
+            <div class="table-list my-5" id="table-list">
               <p class="italic">Loading tables...</p>
             </div>
 
-            <form method="get" action="/api/create_table">
+            <form
+              method="get"
+              action="/api/create_table"
+              style="margin-bottom: 1rem"
+            >
               <button type="submit">CREATE NEW TABLE</button>
             </form>
 
-            <form method="get" action="/logout">
-              <button type="submit" class="button-small mt-2">LOG OUT</button>
+            <form method="get" action="/logout" style="margin-bottom: 1rem">
+              <button type="submit" class="button-small mt-2">LOG OUT</button
+              ><br />
+              <small> Logged in as {{ session_username }} </small>
             </form>
 
             <div class="modal-meta">
               <small>
-                Logged in as {{ session_username }}
-                <br />
-                {{ version }} -
+                Created by
+                <a href="https://danricho.com" target="_blank">danricho</a> in
+                2022, then 2026<br />{{ version }} -
                 <a href="https://github.com/danricho/web500" target="_blank"
                   >GitHub</a
                 >
@@ -194,7 +188,7 @@
             "</legend>" +
             '<div class="table-row-body"><div>' +
             '<small class="italic">(' + escapeHtml(t.state) + ")</small>" +
-            '<div class="table-seats">' + seats + "</div></div>" + action + "</div></fieldset>";
+            '<div class="table-seats"><small>' + seats + "</small></div></div>" + action + "</div></fieldset>";
         });
         container.innerHTML = html;
       }
