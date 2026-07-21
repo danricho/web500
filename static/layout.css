@@ -82,7 +82,9 @@ body {
                (disconnected covers everything - nothing works while offline)
      ribbon    game-dialog ribbon - deliberately above modals so dialogs stay
                readable (.z-ribbon)
-     toasts    toast stack - above everything */
+     toasts    toast stack
+     rotate    "please rotate your device" overlay - truly above everything,
+               since nothing else is usable in landscape on a phone anyway */
 :root {
   --z-chips: 1000;
   --z-lobby: 1001;
@@ -94,6 +96,7 @@ body {
   --z-disconnected: 1008;
   --z-ribbon: 10000;
   --z-toasts: 10010;
+  --z-rotate: 10020;
 }
 .z-chips {
   z-index: var(--z-chips);
@@ -128,6 +131,41 @@ body {
 }
 #toast-stack {
   z-index: var(--z-toasts);
+}
+
+/* "PLEASE ROTATE YOUR DEVICE" OVERLAY - iOS SAFARI HAS NO SCREEN ORIENTATION
+   LOCK API (AND IGNORES THE WEB MANIFEST'S orientation FIELD OUTSIDE AN
+   INSTALLED ANDROID PWA), SO THIS IS THE ONLY AVAILABLE FALLBACK: BLOCK THE UI
+   WITH A NAG RATHER THAN A TRUE LOCK. HIDDEN BY DEFAULT; SHOWN ONLY BY THE
+   MEDIA QUERY BELOW, WHICH IS DELIBERATELY NARROW SO IT NEVER FIRES ON A
+   RESIZED/SNAPPED DESKTOP BROWSER WINDOW:
+     - max-height: 500px - IN LANDSCAPE, A PHONE'S VIEWPORT HEIGHT IS ITS
+       PORTRAIT WIDTH, WHICH TOPS OUT AROUND 430px EVEN ON THE LARGEST IPHONES.
+       AN IPAD IN LANDSCAPE IS ~768px+ TALL AND A LAPTOP WINDOW TALLER STILL -
+       BOTH STAY WELL CLEAR OF THIS THRESHOLD.
+     - hover: none AND pointer: coarse - TRUE ONLY ON A TOUCHSCREEN WITH NO
+       MOUSE, SO A SHORT DESKTOP BROWSER WINDOW (WHICH HAS A MOUSE, HENCE
+       hover: hover / pointer: fine) NEVER MATCHES EVEN IF RESIZED THAT SHORT. */
+#rotate-overlay {
+  display: none;
+}
+@media (max-height: 500px) and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  #rotate-overlay {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-rotate);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    text-align: center;
+    padding: 2rem;
+    background-color: var(--bg-darker);
+    color: var(--fg-light);
+    pointer-events: auto; /* body defaults to none - this must swallow every
+      tap, same reasoning as the modal backdrops (see styling.css) */
+  }
 }
 .d-inline-block {
   display: inline-block;
