@@ -121,10 +121,13 @@
               <button type="submit">CREATE NEW TABLE</button>
             </form>
 
+            <form method="get" action="/logout">
+              <button type="submit" class="button-small mt-2">LOG OUT</button>
+            </form>
+
             <div class="modal-meta">
               <small>
-                Logged in as {{ session_username }} -
-                <a href="/logout">logout</a>
+                Logged in as {{ session_username }}
                 <br />
                 {{ version }} -
                 <a href="https://github.com/danricho/web500" target="_blank"
