@@ -14,15 +14,11 @@ var CONFIG = {
   },
 };
 
+// SUIT_STR/SUIT_DISP/SUIT_COL cover all 6 suit slots (0=Misère..5=No Trumps,
+// see CLAUDE.md "Card model") for text/colour lookups; the SVG icon itself
+// only exists for suits 1-4 (Misère/No Trumps render as text) - see
+// SUIT_ICON_SVG / suitIconSvg() in svg.js.
 SUIT_STR = ["Misère", "Spades", "Clubs", "Diamonds", "Hearts", "No Trumps"];
-SUIT_SVG = [
-  null,
-  `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16" class="inline-icon-cards"><path d="M12.775 5.44c-3.024-2.248-4.067-4.047-4.774-5.44v0c-0 0-0-0-0-0v0c-0.708 1.393-1.75 3.192-4.774 5.44-5.157 3.833-0.303 9.182 3.965 6.238-0.278 1.827-1.227 3.159-2.191 3.733v0.59h6v-0.59c-0.964-0.574-1.913-1.906-2.191-3.733 4.268 2.944 9.122-2.405 3.965-6.238z"></path></svg>`,
-  `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16" class="inline-icon-cards"><path d="M12.294 6.137c-0.922 0-1.751 0.384-2.341 1.011-0.25 0.265-0.684 0.58-1.153 0.856 0.22-0.842 0.917-1.902 1.4-2.367 0.619-0.596 1-1.435 1-2.367 0-1.795-1.429-3.252-3.2-3.271-1.771 0.019-3.2 1.475-3.2 3.271 0 0.932 0.38 1.771 1 2.367 0.484 0.465 1.18 1.525 1.4 2.367-0.469-0.277-0.903-0.591-1.153-0.856-0.59-0.627-1.419-1.011-2.341-1.011-1.787 0-3.236 1.463-3.236 3.271s1.448 3.271 3.236 3.271c0.923 0 1.751-0.396 2.341-1.023 0.263-0.279 0.726-0.627 1.223-0.916-0.047 2.308-1.149 4.003-2.271 4.67v0.59h6v-0.59c-1.122-0.668-2.224-2.363-2.271-4.67 0.498 0.289 0.961 0.637 1.223 0.916 0.59 0.626 1.419 1.023 2.341 1.023 1.787 0 3.236-1.464 3.236-3.271s-1.448-3.271-3.236-3.271z"></path></svg>`,
-  `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16" class="inline-icon-cards"><path d="M8 0l-5 8 5 8 5-8z"></path></svg>`,
-  `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16" class="inline-icon-cards"><path d="M11.8 1c-1.682 0-3.129 1.368-3.799 2.797-0.671-1.429-2.118-2.797-3.8-2.797-2.318 0-4.2 1.882-4.2 4.2 0 4.716 4.758 5.953 8 10.616 3.065-4.634 8-6.050 8-10.616 0-2.319-1.882-4.2-4.2-4.2z"></path></svg>`,
-  "No Trumps",
-];
 SUIT_DISP = [null, "♠︎", "♣︎", "♦︎", "♥︎", "No Trumps"];
 SUIT_COL = [null, "suit-black", "suit-black", "suit-red", "suit-red", ""];
 /// RANK index ranges from 3 to 15.
@@ -139,11 +135,11 @@ function sameName(a, b) {
   );
 }
 
-// BOT NAMES ARRIVE FROM THE SERVER AS "B|Name" (RENDERING CONCERN ONLY - THE SERVER
-// KEEPS THE PREFIX). ANYWHERE THE CLIENT SHOWS ONE, THE PREFIX RENDERS AS A ROBOT
-// ICON INSTEAD. TEXT IS HTML-ESCAPED FIRST BECAUSE THE CALL SITES USE .html().
-var BOT_ICON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" fill="currentColor" class="bot-icon" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135"/><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5"/></svg> ';
+// BOT NAMES ARRIVE FROM THE SERVER AS "B|Name" / DEV TEST-MODE BOTS AS "D|NAME"
+// (RENDERING CONCERN ONLY - THE SERVER KEEPS THE PREFIX). ANYWHERE THE CLIENT
+// SHOWS ONE, THE PREFIX RENDERS AS AN ICON INSTEAD - SEE PREFIX_ICON_SVG /
+// replacePrefixIcons() IN svg.js. TEXT IS HTML-ESCAPED FIRST BECAUSE THE CALL
+// SITES USE .html().
 function escapeHtml(text) {
   return String(text)
     .replace(/&/g, "&amp;")
@@ -151,13 +147,8 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-// DEV TEST-MODE BOTS ARRIVE AS "D|NAME" - SAME SCHEME, CODE-BRACKETS ICON INSTEAD
-var DEV_BOT_ICON_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem" fill="currentColor" stroke="currentColor" stroke-width="1" class="bot-icon" viewBox="-1 -1 18 18"><path fill-rule="evenodd" d="M3.05 3.05a7 7 0 0 0 0 9.9.5.5 0 0 1-.707.707 8 8 0 0 1 0-11.314.5.5 0 1 1 .707.707m9.9-.707a.5.5 0 0 1 .707 0 8 8 0 0 1 0 11.314.5.5 0 0 1-.707-.707 7 7 0 0 0 0-9.9.5.5 0 0 1 0-.707M6 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m5-6.5a.5.5 0 0 0-1 0v2.117L8.257 5.57a.5.5 0 0 0-.514.858L9.528 7.5 7.743 8.571a.5.5 0 1 0 .514.858L10 8.383V10.5a.5.5 0 1 0 1 0V8.383l1.743 1.046a.5.5 0 0 0 .514-.858L11.472 7.5l1.785-1.071a.5.5 0 1 0-.514-.858L11 6.617z"/></svg> ';
 function displayName(text) {
-  return escapeHtml(text)
-    .replace(/B\|/g, BOT_ICON_SVG)
-    .replace(/D\|/g, DEV_BOT_ICON_SVG);
+  return replacePrefixIcons(escapeHtml(text));
 }
 var forceScoreboardDisplay = false;
 var lastGameDialog = null; // raw server dialog string (compared before the B| icon substitution)
@@ -275,7 +266,7 @@ $.fn.updateArrayCards = function (cards) {
       $(value).toggleClass("rank-10", card.rank == 10);
       if (card.rank != 15) {
         $(value).addClass(SUIT_COL[card.suit]);
-        $(value).find("p.suit").html(SUIT_SVG[card.suit]);
+        $(value).find("p.suit").html(suitIconSvg(card.suit, "inline-icon-cards"));
         $(value).find("p.rank").text(RANK_DISP[card.rank]);
       }
       $(value).show();
@@ -283,22 +274,6 @@ $.fn.updateArrayCards = function (cards) {
       $(value).hide();
     }
   });
-};
-// 24x24 ICON PATHS (materialdesignicons.com)
-ICON_SVG = {
-  "cloud-download-outline": `M8,13H10.55V10H13.45V13H16L12,17L8,13M19.35,10.04C21.95,10.22 24,12.36 24,15A5,5 0 0,1 19,20H6A6,6 0 0,1 0,14C0,10.91 2.34,8.36 5.35,8.04C6.6,5.64 9.11,4 12,4C15.64,4 18.67,6.59 19.35,10.04M19,18A3,3 0 0,0 22,15C22,13.45 20.78,12.14 19.22,12.04L17.69,11.93L17.39,10.43C16.88,7.86 14.62,6 12,6C9.94,6 8.08,7.14 7.13,8.97L6.63,9.92L5.56,10.03C3.53,10.24 2,11.95 2,14A4,4 0 0,0 6,18H19Z`,
-  "cloud-off-outline": `M7.73,10L15.73,18H6A4,4 0 0,1 2,14A4,4 0 0,1 6,10M3,5.27L5.75,8C2.56,8.15 0,10.77 0,14A6,6 0 0,0 6,20H17.73L19.73,22L21,20.73L4.27,4M19.35,10.03C18.67,6.59 15.64,4 12,4C10.5,4 9.15,4.43 8,5.17L9.45,6.63C10.21,6.23 11.08,6 12,6A5.5,5.5 0 0,1 17.5,11.5V12H19A3,3 0 0,1 22,15C22,16.13 21.36,17.11 20.44,17.62L21.89,19.07C23.16,18.16 24,16.68 24,15C24,12.36 21.95,10.22 19.35,10.03Z`,
-  "alpha-d-circle": `M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M9,7V17H13A2,2 0 0,0 15,15V9A2,2 0 0,0 13,7H9M11,9H13V15H11V9Z`,
-  "alpha-c-circle": `M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,7A2,2 0 0,0 9,9V15A2,2 0 0,0 11,17H13A2,2 0 0,0 15,15V14H13V15H11V9H13V10H15V9A2,2 0 0,0 13,7H11Z`,
-};
-$.fn.appendSvg = function (iconName, newId, extraClass) {
-  $(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="${ICON_SVG[iconName]}"></path></svg>`,
-  )
-    .attr("id", newId)
-    .addClass(extraClass)
-    .appendTo(this);
-  return this;
 };
 $.currentTimeStamp = function () {
   var time = new Date();
@@ -765,7 +740,7 @@ function processGameStateData(data) {
           ? "Misère"
           : data.trumps === 5
             ? "<span class='bold'>N.T.</span>"
-            : SUIT_SVG[data.trumps],
+            : suitIconSvg(data.trumps, "inline-icon-cards"),
       )
       .removeClass("suit-red suit-black")
       .addClass(SUIT_COL[data.trumps] || "");
@@ -1256,18 +1231,16 @@ $(document).ready(function () {
   createCards(); // clone the cards throughout from the prototype
 
   $("#game-system-status")
-    .appendSvg("cloud-download-outline", "sync-icon", "m-1 mx-2 f-primary")
-    .appendSvg("cloud-off-outline", "disconnected-icon", "m-1 mx-2 f-danger");
+    .appendSvg("cloud-arrow-down", "sync-icon", "m-1 mx-2 f-primary")
+    .appendSvg("cloud-slash", "disconnected-icon", "m-1 mx-2 f-danger");
+  $(".dealer-chip").appendSvg("dealer-chip", "", "c-dark bg-lighter ms-3");
+  $(".bid-winner").appendSvg("contractor-chip", "", "f-green bg-lighter ms-3");
 
-  $(".dealer-chip").appendSvg(
-    "alpha-d-circle",
-    "",
-    "c-dark bg-lighter border-rounded",
-  );
-  $(".bid-winner").appendSvg(
-    "alpha-c-circle",
-    "",
-    "f-green bg-lighter border-rounded",
+  // BID/JOKER-NOMINATION SUIT BUTTONS: MARKUP-FREE data-suit="N" BUTTONS IN THE
+  // TEMPLATE, ICON FILLED IN HERE FROM THE SAME suitIconSvg() LOOKUP THE CARDS
+  // USE - KEEPS THE SUIT SVGS DEFINED IN EXACTLY ONE PLACE (svg.js)
+  $(".bid-suit-btn[data-suit], .joker-suit-btn[data-suit]").fillSuitIcons(
+    "inline-icon",
   );
 
   // socketio based long polling. table_id ON THE QUERY STRING IS RE-SENT UNCHANGED

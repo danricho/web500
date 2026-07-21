@@ -291,6 +291,19 @@ button.attention {
   align-items: center;
 }
 
+/* BOT/DEV-BOT NAME-PREFIX ICON (svg.js PREFIX_ICON_SVG). align-items: center
+   ALONE DOES NOTHING HERE - THE SPAN SHRINKS TO FIT ITS ONE SVG CHILD, SO
+   THERE'S NO EXTRA HEIGHT TO CENTER WITHIN. THE ACTUAL FIX IS vertical-align:
+   middle ON THE SPAN ITSELF: THIS ONE SITS DIRECTLY IN RUNNING TEXT (A PLAYER
+   NAME), NOT A DEDICATED ROW LIKE .dealer-chip/.bid-winner ABOVE, SO ITS
+   DEFAULT baseline ALIGNMENT PINS THE SPAN'S BOTTOM EDGE TO THE TEXT
+   BASELINE - PUSHING A TALLER ICON VISIBLY ABOVE THE TEXT'S OWN CENTER. */
+.bot-icon-span {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
 /* TRUMP SUIT INDICATOR (TOP RIGHT) - A BORDERLESS, NON-CLICKABLE BUTTON FACE */
 #trump-indicator button {
   border: none;
@@ -1007,9 +1020,15 @@ select:focus {
   color: var(--success-green);
 }
 
-/* robot icon (rendered for the B| bot-name prefix) sits nicely on the text baseline */
+/* robot icon (rendered for the B|/D| bot-name prefixes, see svg.js
+   PREFIX_ICON_SVG) - vertical centering against the surrounding name text
+   comes from the wrapping .bot-icon-span flex container above, not from
+   vertical-align here. Size lives here (not baked into the SVG markup) so a
+   page can override it - see choose_table.j2.html's tighter table-list
+   variant */
 .bot-icon {
-  vertical-align: -0.125em;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 /* SERVER-SENT TOASTS - TOP-RIGHT STACK, COLOURED BY kind, FADE OUT VIA .toast-hide */

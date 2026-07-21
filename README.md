@@ -170,6 +170,8 @@ dotdict.py            dict subclass with attribute access (players/teams/bids)
 templates/game_client.j2.html    single-page client UI for one table (Jinja2)
 templates/choose_table.j2.html   table picker shown between login and the game client
 static/game_client.js            client logic: renders pushed state, emits player actions
+static/svg.js                    single lookup for every SVG icon the client swaps in at
+                                 runtime (suit icons, bot-name icons, toolbar icons)
 data/                 runtime files (gitignored): auth, session key, data/tables/<name>/
                       per-table saves
 ```

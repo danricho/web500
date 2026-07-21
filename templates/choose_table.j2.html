@@ -33,6 +33,7 @@
     <link rel="manifest" href="/static/images/site.webmanifest" />
     <link href="/static/layout.css?{{timeNow}}" rel="stylesheet" />
     <link href="/static/styling.css?{{timeNow}}" rel="stylesheet" />
+    <script src="/static/svg.js?{{timeNow}}"></script>
     <style>
       /* NO jQuery/SOCKET.IO - PLAIN VANILLA JS RE-RENDERS #table-list EVERY 3s
          (SEE THE SCRIPT BELOW), SO SEATS TAKEN BY OTHERS DON'T GO STALE HERE */
@@ -61,6 +62,12 @@
       }
       .table-row button {
         margin: 0;
+      }
+      /* TIGHTER VARIANT OF THE SHARED .bot-icon SIZE (styling.css) - THIS PAGE'S
+         TABLE-LIST ROWS ARE DENSER THAN THE GAME CLIENT */
+      .bot-icon {
+        width: 1.1rem;
+        height: 1.1rem;
       }
     </style>
   </head>
@@ -144,20 +151,15 @@
           return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
         });
       }
-      // BOT NAMES ARRIVE AS "B|Name" / DEV TEST-MODE BOTS AS "D|NAME" - SAME SCHEME
-      // AND SAME SVG MARKUP AS displayName()/BOT_ICON_SVG/DEV_BOT_ICON_SVG IN
-      // game_client.js (DUPLICATED HERE RATHER THAN SHARED, SAME PRECEDENT AS
-      // cards_review.j2.html's OWN FILL-LOGIC MIRROR - THIS PAGE DELIBERATELY DOESN'T
-      // LOAD game_client.js). KEEP IN SYNC IF THE ICONS CHANGE THERE.
-      var BOT_ICON_SVG =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1.1rem" height="1.1rem" fill="currentColor" class="bot-icon" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135"/><path d="M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5"/></svg> ';
-      var DEV_BOT_ICON_SVG =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1.1rem" height="1.1rem" fill="currentColor" stroke="currentColor" stroke-width="1" class="bot-icon" viewBox="-1 -1 18 18"><path fill-rule="evenodd" d="M3.05 3.05a7 7 0 0 0 0 9.9.5.5 0 0 1-.707.707 8 8 0 0 1 0-11.314.5.5 0 1 1 .707.707m9.9-.707a.5.5 0 0 1 .707 0 8 8 0 0 1 0 11.314.5.5 0 0 1-.707-.707 7 7 0 0 0 0-9.9.5.5 0 0 1 0-.707M6 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m5-6.5a.5.5 0 0 0-1 0v2.117L8.257 5.57a.5.5 0 0 0-.514.858L9.528 7.5 7.743 8.571a.5.5 0 1 0 .514.858L10 8.383V10.5a.5.5 0 1 0 1 0V8.383l1.743 1.046a.5.5 0 0 0 .514-.858L11.472 7.5l1.785-1.071a.5.5 0 1 0-.514-.858L11 6.617z"/></svg> ';
+      // BOT NAMES ARRIVE AS "B|Name" / DEV TEST-MODE BOTS AS "D|NAME" - SAME
+      // SCHEME AND SAME SVG MARKUP AS displayName() IN game_client.js, SHARED
+      // VIA svg.js's PREFIX_ICON_SVG/replacePrefixIcons() (THIS PAGE CAN LOAD
+      // THAT FILE EVEN WITHOUT jQuery - ITS PLUGIN BITS ARE GUARDED). ICON SIZE
+      // IS THE ONLY THING THAT DIFFERS HERE, VIA THE .bot-icon CSS OVERRIDE
+      // ABOVE, NOT A FORKED SVG.
       function displayName(name) {
         if (!name) return "—";
-        return escapeHtml(name)
-          .replace(/B\|/g, BOT_ICON_SVG)
-          .replace(/D\|/g, DEV_BOT_ICON_SVG);
+        return replacePrefixIcons(escapeHtml(name));
       }
 
       function renderTables(list) {
