@@ -1,9 +1,49 @@
 # Development notes
 
-Implementation detail for people modifying the code. For what the game is, how to
-install and host it, and the rough architecture, see [README.md](../README.md). Bot
-behaviour has its own document: [BOTS.md](BOTS.md). Planned work lives in
-[ROADMAP.md](ROADMAP.md).
+Implementation detail for people modifying the code. For what the game is and how to
+install and host it, see [README.md](../README.md) (its architecture section covers
+the state-machine diagram this file builds on). Bot behaviour has its own document:
+[BOTS.md](BOTS.md). Planned work lives in [ROADMAP.md](ROADMAP.md).
+
+## Architecture
+
+```
+main.py               Flask app + Socket.IO event handlers; thin routing layer only
+game_state.py         GameStateMachine — all game rules, state and flow (the core file);
+                      also owns the table registry (any number of tables run at once)
+bots.py               bot players: lobby-seatable PlayerBot (view-restricted, per-bot
+                      personality) + the predictable random dev test-mode bot
+playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting
+threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule` poller;
+                      a failing job logs its traceback and fires the on_error hook
+                      (wired to a SERVER ERROR toast); the worker always survives
+dotdict.py            dict subclass with attribute access (players/teams/bids)
+templates/game_client.j2.html    single-page client UI for one table (Jinja2)
+templates/choose_table.j2.html   table picker shown between login and the game client
+static/game_client.js            client logic: renders pushed state, emits player actions
+static/svg.js                    single lookup for every SVG icon the client swaps in at
+                                 runtime (suit icons, bot-name icons, toolbar icons)
+data/                 runtime files (gitignored): auth, session key, data/tables/<name>/
+                      per-table saves
+```
+
+The server is authoritative; clients never compute game logic. Every browser connected
+to a table receives that table's entire game state on every push and emits player
+actions (seat, bid, discard, play) back as Socket.IO events, scoped to that table's
+room. Any number of tables can run at once, each independently — pick or create one
+after logging in. Hiding opponents' cards is a client-side rendering concern only.
+
+The full state-machine table and diagram live in the README's
+[architecture section](../README.md#the-game-state-machine); mechanics for anyone
+working on the code are under "State machine mechanics" below.
+
+### Player bots
+
+The lobby's ADD BOTS button fills empty seats with server-side bot players — they
+bid, discard and play with human-like personalities (imperfect memory, varying
+confidence, occasional miscalculations) and only ever see what a human in their
+seat could see. Design notes, behaviour model and phase status live in
+[BOTS.md](BOTS.md).
 
 ## Running for development
 
@@ -149,9 +189,8 @@ an idea in [ROADMAP.md](ROADMAP.md), not yet designed or built.)
 
 ## State machine mechanics
 
-The six states and their transitions are diagrammed in the README's
-[architecture section](../README.md#the-game-state-machine). Key mechanics for anyone
-working on the code:
+The six states and their transitions are diagrammed in the [Architecture](#architecture)
+section above. Key mechanics for anyone working on the code:
 
 - **All transitions go through `state_trans()`.** It inspects the current state, decides
   whether the conditions to move on are met, and performs the side effects of the
