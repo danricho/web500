@@ -125,7 +125,7 @@ selected table is this browser's own) rather than always showing this table's st
 | `/api/tables`              | JSON list of every table: name, state, seated players, test_mode/skip_delays, and (personalised to the caller) whether it's full / they're already seated there. |
 | `/api/select_table`        | Join a table (`?id=<name>`). 403s if full and the caller isn't already seated there.                                    |
 | `/api/create_table`        | Create a fresh table and select it, in one round trip.                                                                  |
-| `/api/change_table`        | Back to the table picker. Only meaningful while WAITING FOR PLAYERS (properly vacates the seat then); mid-hand it's unreachable through the UI. |
+| `/api/change_table`        | Back to the table picker. Vacates the seat while WAITING FOR PLAYERS; past that the button still shows for an unseated viewer (nothing to vacate) so nobody gets stranded on a table that moved on without them. |
 | `/api/reinit`              | Re-initialise the **caller's own table** and clear its autosave (refused mid-deal). Any logged-in non-admin player, via the settings modal. Admins get `/admin/reinit` instead. |
 | `/admin/reinit`            | Admin-only: re-initialise any table, chosen via `?table=`/`#admin-table-select` (falls back to the admin's own table). |
 | `/admin/delete_table`      | Admin-only: permanently delete any table (`?table=`-aware) — deregisters it, deletes its save directory, tells any connected client via `table_closed`. Not gated on state — works mid-hand too. |

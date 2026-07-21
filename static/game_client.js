@@ -416,9 +416,14 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
   $(".reinit").toggle(connected);
   $("#admin-reinit").toggle(connected);
   $("#admin-delete-table").toggle(connected);
-  // ONLY WHILE WAITING FOR PLAYERS - THAT'S THE ONLY STATE api/change_table CAN
-  // PROPERLY VACATE THE SEAT IN, RATHER THAN LEAVING IT ORPHANED
-  $(".change-table").toggle(connected && gameState == "WAITING FOR PLAYERS");
+  // WAITING FOR PLAYERS: api/change_table CAN PROPERLY VACATE A SEAT THERE, RATHER
+  // THAN LEAVING IT ORPHANED. IN ANY OTHER STATE THE BUTTON STILL SHOWS FOR AN
+  // UNSEATED VISITOR (NOTHING TO VACATE) - OTHERWISE SOMEONE WHO NEVER SAT (OR CAME
+  // BACK LATER TO A TABLE THAT MOVED ON WITHOUT THEM) WOULD BE STRANDED HERE WITH NO
+  // WAY BACK TO THE TABLE PICKER.
+  $(".change-table").toggle(
+    connected && (gameState == "WAITING FOR PLAYERS" || !amSeated),
+  );
   $("#toggle-test").toggle(connected);
   $("#toggle-skip-delays").toggle(connected);
   $("#save-checkpoint").toggle(connected);
