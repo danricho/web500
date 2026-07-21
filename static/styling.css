@@ -442,12 +442,12 @@ select:focus {
   outline: 0;
 }
 
-/* DEV TABLE SELECTOR - MADE TO LOOK LIKE THE button.button-small ROW IT SITS IN
+/* ADMIN TABLE SELECTOR - MADE TO LOOK LIKE THE button.button-small ROW IT SITS IN
    RATHER THAN A PLAIN FORM FIELD (SKELETON'S DEFAULT select KEEPS THE NATIVE OS
    DROPDOWN CHROME EVEN AFTER THE COLOUR/BORDER MATCH ABOVE - height:38px AND THE
    border/background-color ALREADY MATCH button's, ONLY THE CHROME + TYPOGRAPHY NEED
    OVERRIDING HERE) */
-#dev-table-select {
+#admin-table-select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;

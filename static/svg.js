@@ -26,7 +26,7 @@ var SUIT_ICON_SVG = {
 };
 
 // PREFIX ICONS — player names arrive from the server as "PREFIX|Name" (bot
-// markers, see CLAUDE.md "Player bots" / "Dev endpoints"); displayName()
+// markers, see CLAUDE.md "Player bots" / "Admin endpoints"); displayName()
 // swaps the prefix for one of these. Each is wrapped in a ".bot-icon-span"
 // (styling.css - same flex-centering pattern as .dealer-chip/.bid-winner) so
 // the icon sits vertically centered against the surrounding name text instead

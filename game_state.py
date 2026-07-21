@@ -13,7 +13,7 @@ import threaded_schedule
 from threaded_schedule import schedule as schedule
 import inspect
 
-import bots # BOT PLAYERS (INCL. THE DEV TEST-MODE BOT) LIVE OUTSIDE THE GAME RULES
+import bots # BOT PLAYERS (INCL. THE ADMIN TEST-MODE BOT) LIVE OUTSIDE THE GAME RULES
 
 # SINGLE WORKER ON PURPOSE: ITS JOB QUEUE IS WHAT SERIALISES EVERY GAME MUTATION.
 # LONG-RUNNING WORK (auto_deal, auto_points, state_trans) IS QUEUED, NEVER CALLED
@@ -28,7 +28,7 @@ def same_name(a, b):
   return a != None and b != None and str(a).casefold() == str(b).casefold()
 
 # SAVE FILES: AUTOSAVE PERSISTS THE LIVE GAME ACROSS SERVICE RESTARTS (LOADED AT STARTUP,
-# CLEARED BY /api/reinit); CHECKPOINT IS THE MANUAL DEV SAVE/LOAD SLOT (SEPARATE FILE).
+# CLEARED BY /api/reinit); CHECKPOINT IS THE MANUAL ADMIN SAVE/LOAD SLOT (SEPARATE FILE).
 # EACH TABLE GETS ITS OWN SUBDIRECTORY - SEE THE TABLE REGISTRY BELOW.
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 TABLES_DIR = os.path.join(DATA_DIR, "tables")
@@ -121,7 +121,7 @@ def poll_all_tables():
 # (NOT A TOAST - THE ROOM WON'T EXIST TO PUSH TO AFTERWARDS, SO THE CLIENT WOULD
 # OTHERWISE JUST GO SILENTLY STALE FOREVER), THEN REMOVES IT FROM THE REGISTRY AND
 # DELETES ITS data/tables/<name>/ DIRECTORY. SHARED BY reap_empty_tables() (BELOW) AND
-# THE DEV-ONLY /dev/delete_table ROUTE (MANUAL, ANY TABLE, REGARDLESS OF STATE).
+# THE ADMIN-ONLY /admin/delete_table ROUTE (MANUAL, ANY TABLE, REGARDLESS OF STATE).
 def delete_table(name, reason):
   t = tables.get(name)
   if t is None:
@@ -190,7 +190,7 @@ class GameStateMachine:
     self.last_push = datetime.now() # DRIVES THE 10s KEEP-ALIVE RE-PUSH
     # EMPTY-TABLE REAP TRACKING (reap_empty_tables IN THIS MODULE) - TRANSIENT, RESET
     # HERE UNCONDITIONALLY LIKE EVERY OTHER GAMEPLAY FIELD (UNLIKE autosave_path BELOW):
-    # __init__ ALSO CLEARS EVERY SEAT, SO A FRESH TABLE, A DEV REINIT, AND A GAME-OVER
+    # __init__ ALSO CLEARS EVERY SEAT, SO A FRESH TABLE, AN ADMIN REINIT, AND A GAME-OVER
     # AUTO-RESET ALL CORRECTLY RESTART THE 5-MINUTE COUNTDOWN FROM THIS EXACT MOMENT
     self._empty_since = None
 
@@ -248,7 +248,7 @@ class GameStateMachine:
     # __init__ MEANS BOTS EVAPORATE AT GAME END / REINIT.
     self.player_bots = {}
 
-    # DEV: temp modes' controls (TOGGLED VIA /dev/test AND /dev/skipdelays)
+    # ADMIN: temp modes' controls (TOGGLED VIA /admin/test AND /admin/skipdelays)
     self.test_mode = False   # SEATS BOTS AND LETS THEM ACT ON EVERY PUSH
     self.skip_delays = False # MAKES self.delay() A NO-OP, SO A HAND PLAYS OUT INSTANTLY
     self.debug_mode = True   # GATES self.debug() - THE STATE-TRANSITION TRACE
@@ -651,7 +651,7 @@ class GameStateMachine:
     else:
       pass # NO SOCKET (HEADLESS/TEST USE) - NOTHING TO PUSH TO
     # EVERY STATE CHANGE GIVES WHICHEVER BOT HOLDS THE FOCUSED SEAT A CHANCE TO ACT.
-    # bots.bot_check ROUTES DEV TEST-MODE BOTS vs SEATED PLAYER BOTS; THE GUARD SKIPS
+    # bots.bot_check ROUTES ADMIN TEST-MODE BOTS vs SEATED PLAYER BOTS; THE GUARD SKIPS
     # THE QUEUE CHURN ENTIRELY WHEN NO BOTS EXIST (THE COMMON HUMANS-ONLY GAME)
     if self.test_mode or self.player_bots:
       schedule_t.jobqueue.put(lambda: bots.bot_check(self))
@@ -660,8 +660,8 @@ class GameStateMachine:
   # CLIENT TOAST. DELIBERATELY A DEDICATED EVENT, NOT PART OF THE game_state PUSH: THE
   # 10s KEEP-ALIVE RE-PUSHES FULL STATE, SO A TOAST EMBEDDED THERE WOULD REPLAY.
   # category IS A BOLD ALL-CAPS HEADING RENDERED ABOVE THE MESSAGE (SERVER ERROR /
-  # SERVER / GAME MANAGEMENT / PLAYERS). audience="dev" IS COSMETIC CLIENT-SIDE
-  # FILTERING ONLY (THE SESSION_IS_DEV FLAG) - CURRENTLY UNUSED (ALL TOASTS GO TO
+  # SERVER / GAME MANAGEMENT / PLAYERS). audience="admin" IS COSMETIC CLIENT-SIDE
+  # FILTERING ONLY (THE SESSION_IS_ADMIN FLAG) - CURRENTLY UNUSED (ALL TOASTS GO TO
   # EVERYONE AT THIS TABLE) BUT KEPT FOR FUTURE USE. NOTHING SENSITIVE MAY EVER RIDE
   # IN A TOAST. room=self.name SCOPES IT TO THIS TABLE ONLY - schedule_t.on_error IS
   # THE ONE DELIBERATE EXCEPTION (SEE main.py), STILL A PROCESS-WIDE BROADCAST.

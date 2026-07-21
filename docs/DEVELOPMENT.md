@@ -61,7 +61,7 @@ venv/bin/gunicorn -b :4030 -w 1 --threads 100 main:app
 ```
 
 Open `http://localhost:4030`, log in, pick or create a table, take a seat, and (for a
-solo test drive) visit `/dev/test` to seat three bots at that table.
+solo test drive) visit `/admin/test` to seat three bots at that table.
 
 > **Important:** every table lives in process memory, so gunicorn must run with
 > **exactly one worker** (`-w 1`). Multiple workers would each have their own,
@@ -97,23 +97,23 @@ rejoin. Tables with no seated player for `TABLE_EMPTY_REAP_S` (300s) are removed
 automatically via `game_state.delete_table()`, which also deletes the save directory;
 a removed table's lingering spectator (if any) gets a dedicated `table_closed` socket
 event, not a toast, since the room won't exist to push to afterwards — the client
-redirects itself to `/`. `delete_table()` is shared with the dev-only
-`/dev/delete_table` route (manual removal of any table, regardless of state — see "Dev
-endpoints" below).
+redirects itself to `/`. `delete_table()` is shared with the admin-only
+`/admin/delete_table` route (manual removal of any table, regardless of state — see
+"Admin endpoints" below).
 
 The single shared `ThreadedSchedule` worker (see "State machine mechanics" below)
 serialises mutations across **every** table, deliberately not split per-table — simple
 starting point, revisit only if one table's queued work ever visibly delays another's.
 
-## Dev endpoints & test mode
+## Admin endpoints & test mode
 
-Plain HTTP GET helpers. `dev/*` requires a logged-in session whose name is in
-`auth.json`'s `dev_users`; `api/*` requires any logged-in session. The dev-only
+Plain HTTP GET helpers. `admin/*` requires a logged-in session whose name is in
+`auth.json`'s `admin_users`; `api/*` requires any logged-in session. The admin-only
 section of the settings modal is the client-side front end for most of these, including
-a table selector (`#dev-table-select`) that scopes the `?table=`-aware ones below to
-any table, not just the dev's own (it only scopes the admin action — it doesn't move
-the dev's own connected view to that table). The option list is server-rendered at page
-load, then refreshed by `refreshDevTableSelect()` (`/api/tables`) every time the
+a table selector (`#admin-table-select`) that scopes the `?table=`-aware ones below to
+any table, not just the admin's own (it only scopes the admin action — it doesn't move
+the admin's own connected view to that table). The option list is server-rendered at page
+load, then refreshed by `refreshAdminTableSelect()` (`/api/tables`) every time the
 settings modal opens, same "re-ask on open" pattern as the uptime display — otherwise a
 table created or deleted after page load would leave it stale. For the same reason, the
 TEST MODE / SKIP DELAYS button labels read from that same `/api/tables` data for
@@ -126,16 +126,16 @@ selected table is this browser's own) rather than always showing this table's st
 | `/api/select_table`        | Join a table (`?id=<name>`). 403s if full and the caller isn't already seated there.                                    |
 | `/api/create_table`        | Create a fresh table and select it, in one round trip.                                                                  |
 | `/api/change_table`        | Back to the table picker. Only meaningful while WAITING FOR PLAYERS (properly vacates the seat then); mid-hand it's unreachable through the UI. |
-| `/api/reinit`              | Re-initialise the **caller's own table** and clear its autosave (refused mid-deal). Any logged-in non-dev player, via the settings modal. Devs get `/dev/reinit` instead. |
-| `/dev/reinit`              | Dev-only: re-initialise any table, chosen via `?table=`/`#dev-table-select` (falls back to the dev's own table).        |
-| `/dev/delete_table`        | Dev-only: permanently delete any table (`?table=`-aware) — deregisters it, deletes its save directory, tells any connected client via `table_closed`. Not gated on state — works mid-hand too. |
-| `/dev/test`                | Toggle test mode on the target table (`?table=`-aware): seats three bots and lets them act on their turn.               |
-| `/dev/save` / `/dev/load`  | Write / restore the target table's manual checkpoint (`?table=`-aware).                                                 |
-| `/dev/cards`               | Card-appearance review page: the card back plus all 43 faces in a scrollable grid, cloned from the same proto card as the game client (`templates/_proto_card.j2.html`). Process-global, no table involved. |
-| `/dev/clearchk`            | Delete the target table's manual checkpoint file (`?table=`-aware).                                                     |
-| `/dev/skipdelays`          | Toggle skipping of all dramatic pauses on the target table (`?table=`-aware).                                           |
-| `/dev/uptime`              | JSON: version, process start time, uptime in seconds, and whether a restart command is configured. Process-global.      |
-| `/dev/restart`             | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves every table first; each is restored on the way back up. Process-global. |
+| `/api/reinit`              | Re-initialise the **caller's own table** and clear its autosave (refused mid-deal). Any logged-in non-admin player, via the settings modal. Admins get `/admin/reinit` instead. |
+| `/admin/reinit`            | Admin-only: re-initialise any table, chosen via `?table=`/`#admin-table-select` (falls back to the admin's own table). |
+| `/admin/delete_table`      | Admin-only: permanently delete any table (`?table=`-aware) — deregisters it, deletes its save directory, tells any connected client via `table_closed`. Not gated on state — works mid-hand too. |
+| `/admin/test`              | Toggle test mode on the target table (`?table=`-aware): seats three [dev-random bots](#player-bots) and lets them act on their turn. |
+| `/admin/save` / `/admin/load` | Write / restore the target table's manual checkpoint (`?table=`-aware).                                              |
+| `/dev/cards`                | Card-appearance review page: the card back plus all 43 faces in a scrollable grid, cloned from the same proto card as the game client (`templates/_proto_card.j2.html`). Still admin-gated (see `main.py`), but a development/QA tool rather than an admin-role concept, so it keeps the `dev/` path. Process-global, no table involved. |
+| `/admin/clearchk`          | Delete the target table's manual checkpoint file (`?table=`-aware).                                                     |
+| `/admin/skipdelays`        | Toggle skipping of all dramatic pauses on the target table (`?table=`-aware).                                           |
+| `/admin/uptime`            | JSON: version, process start time, uptime in seconds, and whether a restart command is configured. Process-global.      |
+| `/admin/restart`           | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves every table first; each is restored on the way back up. Process-global. |
 | `/api/client_trigger_push` | Force a full state push to the caller's own table only.                                                                 |
 | `/api/last-game`           | JSON dump of games completed this process lifetime (in-memory), across every table.                                    |
 
@@ -167,7 +167,7 @@ The server is authoritative; clients never compute game logic. A client:
    a bold all-caps `category` heading above the message (one of SERVER ERROR / SERVER /
    GAME MANAGEMENT / PLAYERS, tinted to match the `kind`). Deliberately a separate
    event, not part of the `game_state` push (the keep-alive re-push would replay an
-   embedded toast). `audience: "dev"` toasts are filtered client-side on the dev flag —
+   embedded toast). `audience: "admin"` toasts are filtered client-side on the admin flag —
    cosmetic only, nothing sensitive rides in a toast; currently no call site uses it
    (every toast goes to everyone at that table) but the plumbing stays for future use.
    `logit=False` skips the server log line (used by the repeating nudge so it can't
@@ -199,7 +199,7 @@ section above. Key mechanics for anyone working on the code:
   `auto_points`, `state_trans` itself) is never called directly — it is enqueued on
   `schedule_t.jobqueue` and executed by the single `ThreadedSchedule` worker thread.
   That one worker is what serialises all game mutations; keep it that way.
-- **Pacing goes through `self.delay()`**, not bare `sleep()`, so the `skip_delays` dev
+- **Pacing goes through `self.delay()`**, not bare `sleep()`, so the `skip_delays` admin
   flag can bypass every pause.
 - **`player_focus`** (0–3 or `None`) is the single "whose turn is it" pointer used across
   bidding, discarding and play. `None` means nobody may act.
@@ -266,10 +266,10 @@ keeps its live game across the upgrade.
 
 - **`autosave.json`** — written at every safe checkpoint: each state transition, the end
   of scoring, after game-over re-init, and after every socket action. Loaded at startup,
-  so every table survives restarts. `/api/reinit` (own table) / `/dev/reinit` (any
+  so every table survives restarts. `/api/reinit` (own table) / `/admin/reinit` (any
   table) deletes it.
-- **`checkpoint.json`** — manual dev slot (`/dev/save` / `/dev/load`, both
-  `?table=`-aware for devs).
+- **`checkpoint.json`** — manual admin slot (`/admin/save` / `/admin/load`, both
+  `?table=`-aware for admins).
 
 `restore_state()` rebuilds `Deck`/`Card`/`dotdict` objects in place, rewrites the
 autosave, then re-queues any pending automatic work: a game restored mid-DEALING
@@ -332,7 +332,7 @@ the `dict` builtin it subclasses.
 | Functions | `camelCase()` | `updateComponentVisibility()` |
 | Local variables | `camelCase` | `vacantSeats`, `uptimeTimer` |
 | jQuery-wrapped objects | `$` prefix + camelCase | `$toast` |
-| Top-level constants | `UPPER_SNAKE` | `CONFIG`, `SUIT_DISP`, `SESSION_IS_DEV` |
+| Top-level constants | `UPPER_SNAKE` | `CONFIG`, `SUIT_DISP`, `SESSION_IS_ADMIN` |
 | Server-pushed data properties | `snake_case`, never renamed client-side (they mirror Python attributes 1:1) | `data.legal_plays` |
 
 The snake_case-property rule is the boundary: `data.joker_prenom` stays as-is when

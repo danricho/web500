@@ -129,7 +129,7 @@ instead of pixel-perfect alignment; switchable back to "Perfect" per user.
 
 a settings modal with the Perfect/Natural card layout toggle (persisted per browser
 via localStorage), a clear-saved-settings button (wipes all `web500*` localStorage
-keys and reloads), and logout. Dev users get an extra dev-only section in the same
+keys and reloads), and logout. Admin users get an extra admin-only section in the same
 modal (a table selector scoping the actions below to any table; test mode, skip
 delays, checkpoint save/load/clear, table reinit, service uptime + restart), rendered
 server-side only for them.
@@ -140,8 +140,8 @@ server-side only for them.
 <summary><strong>Simple auth</strong></summary>
 
 display name + shared game passcode login with signed session cookies; every action's
-identity comes from the server-side session, and the dev tools are gated to listed dev
-users.
+identity comes from the server-side session, and the admin tools are gated to listed
+admin users.
 
 </details>
 
@@ -223,8 +223,8 @@ journalctl -u web500.service -f
 ```
 
 **4. Set your passcode.** The first start creates `data/auth.json` with a random
-passcode (`{"passcode": ..., "dev_users": [...]}`). Edit it to set your own passcode,
-add your display name to `dev_users` if you want the in-game dev tools, then
+passcode (`{"passcode": ..., "admin_users": [...]}`). Edit it to set your own passcode,
+add your display name to `admin_users` if you want the in-game admin tools, then
 `sudo systemctl restart web500.service`.
 
 **5. Play.** Open `http://your-server:4030`, log in with a display name + the
@@ -246,9 +246,9 @@ case-insensitively but stored and displayed as first written — logging in as "
 while "Henry" is already seated at the table you join resumes that seat under the
 original spelling. Socket actions take the name from the server-side session, never
 from client-supplied data, so players can't act as each other. The session-signing key
-is auto-generated into `data/secret_key.txt` so logins survive restarts. `dev_users` in
-`data/auth.json` lists the names allowed to use the dev endpoints and the settings
-modal's dev section.
+is auto-generated into `data/secret_key.txt` so logins survive restarts. `admin_users` in
+`data/auth.json` lists the names allowed to use the admin endpoints and the settings
+modal's admin section.
 
 ## Architecture
 
@@ -292,7 +292,7 @@ stateDiagram-v2
 ## Developing
 
 Everything deeper — running without systemd, how multiple tables work, the server/client
-contract, state-machine mechanics, dev endpoints and test mode, persistence internals
+contract, state-machine mechanics, admin endpoints and test mode, persistence internals
 and the card encodings — lives in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Roadmap

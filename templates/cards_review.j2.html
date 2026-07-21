@@ -413,7 +413,7 @@
     {% include "_proto_card.j2.html" %}
 
     <script>
-      // DEV-ONLY PAGE. THE FILL LOGIC AND TABLES BELOW MIRROR updateArrayCards /
+      // DEV-ONLY PAGE (GATED ON is_admin_user() LIKE EVERYTHING ELSE - SEE main.py). THE FILL LOGIC AND TABLES BELOW MIRROR updateArrayCards /
       // SUIT_COL / RANK_DISP IN game_client.js (WHICH CAN'T BE LOADED HERE - IT
       // WOULD OPEN A SOCKET AND DRIVE A GAME DOM THIS PAGE DOESN'T HAVE). SUIT
       // ICONS THEMSELVES COME FROM THE SHARED svg.js (SUIT_ICON_SVG /

@@ -60,65 +60,65 @@ RANK_DISP = [
 ];
 
 // IDENTITY COMES FROM THE SERVER SESSION (SET AT LOGIN), INJECTED BY THE TEMPLATE.
-// DEV STATUS IS SERVER-COMPUTED FROM auth.json dev_users (SINGLE SOURCE OF TRUTH) -
-// THIS FLAG ONLY CONTROLS UI VISIBILITY; THE /dev/* ENDPOINTS ENFORCE FOR REAL.
+// ADMIN STATUS IS SERVER-COMPUTED FROM auth.json admin_users (SINGLE SOURCE OF TRUTH) -
+// THIS FLAG ONLY CONTROLS UI VISIBILITY; THE /admin/* ENDPOINTS ENFORCE FOR REAL.
 var username = typeof SESSION_USERNAME !== "undefined" ? SESSION_USERNAME : "";
-var isDevUser = typeof SESSION_IS_DEV !== "undefined" ? SESSION_IS_DEV : false;
+var isAdminUser = typeof SESSION_IS_ADMIN !== "undefined" ? SESSION_IS_ADMIN : false;
 // PINNED PER PAGE-LOAD (NOT RE-READ FROM THE LIVE SESSION) - SEE THE io() CALL BELOW
 var tableId = typeof TABLE_ID !== "undefined" ? TABLE_ID : "";
 
-// SET FROM /dev/uptime EACH TIME A DEV OPENS THE SETTINGS MODAL - THE SERVER'S RESTART_COMMAND
+// SET FROM /admin/uptime EACH TIME AN ADMIN OPENS THE SETTINGS MODAL - THE SERVER'S RESTART_COMMAND
 // CAN BE None, IN WHICH CASE THE RESTART BUTTON HAS NOTHING TO DO
 var restartEnabled = false;
 
-// DEV TABLE SELECTOR VALUE, APPENDED TO EVERY DEV-SCOPED /dev/* CALL SO A DEV CAN
-// ACT ON ANY TABLE VIA #dev-table-select, NOT JUST THEIR OWN (THE SERVER FALLS BACK
-// TO THE DEV'S OWN SESSION TABLE IF THIS IS EVER MISSING/EMPTY). NOTE THIS ONLY
+// ADMIN TABLE SELECTOR VALUE, APPENDED TO EVERY ADMIN-SCOPED /admin/* CALL SO AN ADMIN CAN
+// ACT ON ANY TABLE VIA #admin-table-select, NOT JUST THEIR OWN (THE SERVER FALLS BACK
+// TO THE ADMIN'S OWN SESSION TABLE IF THIS IS EVER MISSING/EMPTY). NOTE THIS ONLY
 // SCOPES THE ADMIN ACTION ITSELF - IT DOESN'T MOVE THIS BROWSER'S OWN LIVE VIEW
-function devTableQuery() {
-  var t = $("#dev-table-select").val();
+function adminTableQuery() {
+  var t = $("#admin-table-select").val();
   return t ? "?table=" + encodeURIComponent(t) : "";
 }
-// devTablesData: name -> {test_mode, skip_delays, ...} FROM THE LAST /api/tables FETCH
-// (SEE refreshDevTableSelect). lastPushData: THE MOST RECENT game_state PUSH - ONLY
+// adminTablesData: name -> {test_mode, skip_delays, ...} FROM THE LAST /api/tables FETCH
+// (SEE refreshAdminTableSelect). lastPushData: THE MOST RECENT game_state PUSH - ONLY
 // EVER FOR *THIS BROWSER'S OWN* TABLE (tableId). TOGETHER THEY LET
-// updateDevModeLabels() SHOW THE RIGHT TEST MODE / SKIP DELAYS STATE FOR WHICHEVER
-// TABLE IS CURRENTLY PICKED IN #dev-table-select, NOT JUST THIS BROWSER'S OWN.
-var devTablesData = {};
+// updateAdminModeLabels() SHOW THE RIGHT TEST MODE / SKIP DELAYS STATE FOR WHICHEVER
+// TABLE IS CURRENTLY PICKED IN #admin-table-select, NOT JUST THIS BROWSER'S OWN.
+var adminTablesData = {};
 var lastPushData = null;
-function updateDevModeLabels() {
-  var selected = $("#dev-table-select").val();
+function updateAdminModeLabels() {
+  var selected = $("#admin-table-select").val();
   var info =
     selected === tableId && lastPushData
       ? {
           test_mode: lastPushData.test_mode,
           skip_delays: lastPushData.skip_delays,
         }
-      : devTablesData[selected];
+      : adminTablesData[selected];
   if (!info) return; // nothing known yet for that table - leave the label as-is
   $("#toggle-test").text("TEST MODE: " + (info.test_mode ? "ON" : "OFF"));
   $("#toggle-skip-delays").text(
     "SKIP DELAYS: " + (info.skip_delays ? "ON" : "OFF"),
   );
 }
-// RE-FETCHES /api/tables, REBUILDS #dev-table-select AND devTablesData, THEN CALLS
-// updateDevModeLabels(). CALLED (a) EVERY TIME THE SETTINGS MODAL OPENS - SAME
+// RE-FETCHES /api/tables, REBUILDS #admin-table-select AND adminTablesData, THEN CALLS
+// updateAdminModeLabels(). CALLED (a) EVERY TIME THE SETTINGS MODAL OPENS - SAME
 // "RE-ASK ON OPEN" PATTERN AS startUptime(), CATCHES A TABLE CREATED/DELETED SINCE
 // PAGE LOAD (THE OPTION LIST IS OTHERWISE ONLY EVER SERVER-RENDERED ONCE) - AND
-// (b) RIGHT AFTER THE dev/test AND dev/skipdelays TOGGLE BUTTONS' AJAX CALLS COMPLETE
+// (b) RIGHT AFTER THE admin/test AND admin/skipdelays TOGGLE BUTTONS' AJAX CALLS COMPLETE
 // (SEE THEIR onclick HANDLERS ABOVE), SINCE TOGGLING A TABLE OTHER THAN THIS
 // BROWSER'S OWN NEVER ARRIVES VIA THE LIVE game_state PUSH - WITHOUT THIS THE TEST
 // MODE / SKIP DELAYS LABELS WOULD SHOW STALE STATE FOR THAT TABLE UNTIL THE MODAL
 // WAS CLOSED AND REOPENED. PRESERVES THE CURRENT SELECTION IF IT STILL EXISTS, ELSE
 // FALLS BACK TO THIS BROWSER'S OWN TABLE.
-function refreshDevTableSelect() {
-  if (!isDevUser) return;
+function refreshAdminTableSelect() {
+  if (!isAdminUser) return;
   $.getJSON("/api/tables").done(function (list) {
-    var current = $("#dev-table-select").val();
-    devTablesData = {};
+    var current = $("#admin-table-select").val();
+    adminTablesData = {};
     var html = "";
     list.forEach(function (t) {
-      devTablesData[t.name] = t;
+      adminTablesData[t.name] = t;
       html +=
         '<option value="' +
         escapeHtml(t.name) +
@@ -126,12 +126,12 @@ function refreshDevTableSelect() {
         escapeHtml(t.name) +
         "</option>";
     });
-    $("#dev-table-select").html(html);
+    $("#admin-table-select").html(html);
     var stillExists = list.some(function (t) {
       return t.name === current;
     });
-    $("#dev-table-select").val(stillExists ? current : tableId);
-    updateDevModeLabels();
+    $("#admin-table-select").val(stillExists ? current : tableId);
+    updateAdminModeLabels();
   });
 }
 // NAMES ARE COMPARED CASE-INSENSITIVELY (SERVER DOES THE SAME VIA same_name())
@@ -414,8 +414,8 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
   $("#disconnected-icon").toggle(!connected);
   $("#disconnected-modal").toggle(!connected);
   $(".reinit").toggle(connected);
-  $("#dev-reinit").toggle(connected);
-  $("#dev-delete-table").toggle(connected);
+  $("#admin-reinit").toggle(connected);
+  $("#admin-delete-table").toggle(connected);
   // ONLY WHILE WAITING FOR PLAYERS - THAT'S THE ONLY STATE api/change_table CAN
   // PROPERLY VACATE THE SEAT IN, RATHER THAN LEAVING IT ORPHANED
   $(".change-table").toggle(connected && gameState == "WAITING FOR PLAYERS");
@@ -756,11 +756,11 @@ function processGameStateData(data) {
       .addClass(SUIT_COL[data.trumps] || "");
   }
 
-  // DEV: show mode states as text rather than ambiguous red/green colouring.
-  // lastPushData/updateDevModeLabels ALSO HANDLE #dev-table-select POINTING AT A
+  // ADMIN: show mode states as text rather than ambiguous red/green colouring.
+  // lastPushData/updateAdminModeLabels ALSO HANDLE #admin-table-select POINTING AT A
   // TABLE OTHER THAN THIS BROWSER'S OWN (data HERE IS ALWAYS THIS TABLE'S PUSH ONLY)
   lastPushData = data;
-  updateDevModeLabels();
+  updateAdminModeLabels();
 
   // label and update seat selection buttons. Scoped to .seat-select: the div also
   // holds the ADD BOTS button, and indexing order2seati past 3 would crash the render
@@ -1296,10 +1296,10 @@ $(document).ready(function () {
 
   // SERVER-SENT TOASTS - A DEDICATED EVENT, DELIBERATELY NOT PART OF THE gameState
   // PUSH (THE 10s KEEP-ALIVE RE-SENDS FULL STATE AND WOULD REPLAY AN EMBEDDED TOAST).
-  // category IS A BOLD ALL-CAPS HEADING ABOVE THE MESSAGE. audience "dev" IS COSMETIC
+  // category IS A BOLD ALL-CAPS HEADING ABOVE THE MESSAGE. audience "admin" IS COSMETIC
   // FILTERING ONLY (currently unused server-side) - NOTHING SENSITIVE ARRIVES IN A TOAST.
   socket.on("toast", function (data) {
-    if (data.audience === "dev" && !isDevUser) return;
+    if (data.audience === "admin" && !isAdminUser) return;
     var $toast = $("<div>").addClass("toast toast-" + (data.kind || "info"));
     if (data.category) {
       $toast.append($("<div>").addClass("toast-category").text(data.category));
@@ -1362,15 +1362,15 @@ $(document).ready(function () {
 
   $(".show-settings").click(function () {
     $("#settings-modal").toggle();
-    // DEV SECTION LIVES IN THIS MODAL: RE-ASK /dev/uptime AND REFRESH THE TABLE
+    // ADMIN SECTION LIVES IN THIS MODAL: RE-ASK /admin/uptime AND REFRESH THE TABLE
     // SELECTOR ON EVERY OPEN (SAME RATIONALE AS THE UPTIME RE-ASK - CATCHES A TABLE
     // CREATED/DELETED SINCE PAGE LOAD)
-    if (isDevUser && $("#settings-modal").is(":visible")) {
+    if (isAdminUser && $("#settings-modal").is(":visible")) {
       startUptime();
-      refreshDevTableSelect();
+      refreshAdminTableSelect();
     } else stopUptime();
   });
-  $("#dev-table-select").change(updateDevModeLabels);
+  $("#admin-table-select").change(updateAdminModeLabels);
 
   $(".hide-settings").click(function () {
     $("#settings-modal").hide();
@@ -1422,7 +1422,7 @@ $(document).ready(function () {
 
   function startUptime() {
     stopUptime();
-    $.getJSON("/dev/uptime")
+    $.getJSON("/admin/uptime")
       .done(function (data) {
         uptimeSeconds = data.uptime;
         restartEnabled = !!data.restart_enabled;
@@ -1470,17 +1470,17 @@ $(document).ready(function () {
       $.ajax({ url: "/api/reinit" });
     });
   });
-  $("#dev-reinit").click(function () {
+  $("#admin-reinit").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/reinit" + devTableQuery() });
+      $.ajax({ url: "/admin/reinit" + adminTableQuery() });
     });
   });
-  $("#dev-delete-table").click(function () {
+  $("#admin-delete-table").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/delete_table" + devTableQuery() });
+      $.ajax({ url: "/admin/delete_table" + adminTableQuery() });
       // THE DROPDOWN NOW HAS A STALE (DELETED) ENTRY UNTIL THE MODAL NEXT REOPENS -
       // REFRESH IT NOW SO IT DOESN'T LINGER SELECTABLE
-      refreshDevTableSelect();
+      refreshAdminTableSelect();
     });
   });
   $(".change-table").click(function () {
@@ -1490,17 +1490,17 @@ $(document).ready(function () {
   });
   $("#save-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/save" + devTableQuery() });
+      $.ajax({ url: "/admin/save" + adminTableQuery() });
     });
   });
   $("#load-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/load" + devTableQuery() });
+      $.ajax({ url: "/admin/load" + adminTableQuery() });
     });
   });
   $("#clear-checkpoint").click(function () {
     confirmThen(this, function () {
-      $.ajax({ url: "/dev/clearchk" + devTableQuery() });
+      $.ajax({ url: "/admin/clearchk" + adminTableQuery() });
     });
   });
   $("#clear-local-data").click(function () {
@@ -1520,18 +1520,18 @@ $(document).ready(function () {
       // ITS OWN - THE GAME COMES BACK FROM THE AUTOSAVE.
       // THE LOCAL ONCE-A-SECOND TICKER WOULD OTHERWISE OVERWRITE "restarting..." AND
       // CARRY ON FROM THE OLD UPTIME (THE MODAL ONLY RE-ASKS THE SERVER ON OPEN):
-      // STOP THE TICKER, THEN POLL /dev/uptime UNTIL THE SERVICE IS BACK AND RESTART
+      // STOP THE TICKER, THEN POLL /admin/uptime UNTIL THE SERVICE IS BACK AND RESTART
       // THE DISPLAY FROM THE FRESH (NEAR-ZERO) VALUE.
       stopUptime();
       $("#service-uptime").text("SERVICE UPTIME: restarting...");
-      $.ajax({ url: "/dev/restart" });
+      $.ajax({ url: "/admin/restart" });
       var retries = 10;
       var restartPoll = setInterval(function () {
         if (!$("#settings-modal").is(":visible") || retries-- <= 0) {
           clearInterval(restartPoll); // modal closed or gave up - open re-asks anyway
           return;
         }
-        $.getJSON("/dev/uptime").done(function () {
+        $.getJSON("/admin/uptime").done(function () {
           clearInterval(restartPoll);
           startUptime();
         });

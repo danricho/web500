@@ -8,7 +8,7 @@ import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceb
 
 base_path = os.path.dirname(sys.argv[0]) +"/"
 
-# THE SHELL COMMAND /dev/restart RUNS. THE LIVE GAME SURVIVES A RESTART - IT IS
+# THE SHELL COMMAND /admin/restart RUNS. THE LIVE GAME SURVIVES A RESTART - IT IS
 # RESTORED FROM data/autosave.json AT STARTUP. SET TO None TO DISABLE THE BUTTON.
 # NEEDS PASSWORDLESS sudo (OR A ROOT SERVICE USER) TO WORK UNATTENDED.
 RESTART_COMMAND = "sudo systemctl restart web-500-web-server.service"
@@ -16,12 +16,12 @@ RESTART_DELAY_S = 0.5 # LET THE HTTP RESPONSE FLUSH BEFORE THE PROCESS IS KILLED
 
 VERSION = "v.2026.07.20.1" # version definition 
                 # SINGLE SOURCE OF TRUTH - SHOWN ON THE CLIENT (MODAL CREDITS), LOGGED
-                # AT STARTUP AND SERVED BY /dev/uptime. BUMP ON RELEASE.
+                # AT STARTUP AND SERVED BY /admin/uptime. BUMP ON RELEASE.
 PORT = 4030 # FLASK DEV SERVER ONLY - GUNICORN BINDS ITSELF (-b :4030 IN THE UNIT/README)
 BOTS_ENABLED = True # MASTER TOGGLE FOR THE LOBBY ADD BOTS BUTTON (SERVER-ENFORCED)
-DEFAULT_DEV_USERS = ["Nerd"] # FIRST-RUN auth.json SEED ONLY - EDIT data/auth.json AFTER
+DEFAULT_ADMIN_USERS = ["Nerd"] # FIRST-RUN auth.json SEED ONLY - EDIT data/auth.json AFTER
 
-SERVICE_START = time.time() # PROCESS START - /dev/uptime REPORTS AGAINST THIS
+SERVICE_START = time.time() # PROCESS START - /admin/uptime REPORTS AGAINST THIS
 
 # QUIETEN WERKZEUG'S PER-REQUEST LINES SO THE GAME'S OWN LOG STAYS READABLE. THE
 # LOGGER IS ONLY NEEDED FOR setLevel - OUR OWN log() PRINTER IS DEFINED BELOW.
@@ -44,7 +44,7 @@ import bots
 # ---------------------------------------------------------------------------
 # SIMPLE AUTH: SHARED GAME PASSCODE + SIGNED SESSION COOKIE. IDENTITY COMES ONLY
 # FROM THE SESSION SET AT LOGIN - SOCKET ACTIONS IGNORE CLIENT-SUPPLIED NAMES.
-# data/auth.json holds {"passcode": ..., "dev_users": [...]} and is created with a
+# data/auth.json holds {"passcode": ..., "admin_users": [...]} and is created with a
 # random passcode on first run (edit it to set your own, then restart).
 # data/secret_key.txt holds the persistent session-signing key so logins survive
 # service restarts. Both live in the gitignored data/ directory.
@@ -55,7 +55,7 @@ SECRET_KEY_FILE = os.path.join(DATA_DIR, "secret_key.txt")
 def load_or_create_auth():
   os.makedirs(DATA_DIR, exist_ok=True)
   if not os.path.exists(AUTH_FILE):
-    config = {"passcode": secrets.token_urlsafe(8), "dev_users": DEFAULT_DEV_USERS}
+    config = {"passcode": secrets.token_urlsafe(8), "admin_users": DEFAULT_ADMIN_USERS}
     with open(AUTH_FILE, "w") as f:
       json.dump(config, f, indent=2)
     log(f"CREATED {AUTH_FILE} WITH A RANDOM PASSCODE - EDIT IT TO SET YOUR OWN")
@@ -80,9 +80,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
 def current_user():
   return session.get("username")
 
-def is_dev_user():
+def is_admin_user():
   user = current_user()
-  return user != None and any(same_name(user, d) for d in AUTH.get("dev_users", []))
+  return user != None and any(same_name(user, d) for d in AUTH.get("admin_users", []))
 
 # THE CALLER'S OWN TABLE, RESOLVED FROM THE LIVE SESSION - CORRECT FOR ORDINARY HTTP
 # ROUTES (EACH REQUEST ALREADY REFLECTS session AS OF *THIS* REQUEST, SO THERE'S NO
@@ -94,14 +94,14 @@ def current_table():
 def _table_sort_key(name):
   return int(name[6:]) if name.startswith("TABLE ") and name[6:].isdigit() else 0
 
-# DEV-ONLY TABLE RESOLUTION FOR /dev/* ROUTES: AN OPTIONAL ?table= QUERY ARG (SET BY
-# #dev-table-select IN THE SETTINGS MODAL) OVERRIDES current_table(), SO A DEV CAN
-# ACT ON ANY TABLE, NOT JUST THEIR OWN. SAFE TO EXPOSE ONLY BECAUSE EVERY dev/* ROUTE
-# IS ALREADY GATED ON is_dev_user() BEFORE THIS IS EVER CALLED (SEE THE path.startswith
-# ("dev/") CHECK BELOW) - THIS DOES NOT MOVE THE DEV'S OWN LIVE VIEW TO THAT TABLE,
-# ONLY SCOPES THE ADMIN ACTION ITSELF (SEE THE COMMENT ON devTableQuery() IN
+# ADMIN-ONLY TABLE RESOLUTION FOR /admin/* ROUTES: AN OPTIONAL ?table= QUERY ARG (SET BY
+# #admin-table-select IN THE SETTINGS MODAL) OVERRIDES current_table(), SO AN ADMIN CAN
+# ACT ON ANY TABLE, NOT JUST THEIR OWN. SAFE TO EXPOSE ONLY BECAUSE EVERY admin/* ROUTE
+# IS ALREADY GATED ON is_admin_user() BEFORE THIS IS EVER CALLED (SEE THE path.startswith
+# ("admin/") CHECK BELOW) - THIS DOES NOT MOVE THE ADMIN'S OWN LIVE VIEW TO THAT TABLE,
+# ONLY SCOPES THE ADMIN ACTION ITSELF (SEE THE COMMENT ON adminTableQuery() IN
 # game_client.js)
-def dev_target_table():
+def admin_target_table():
   table_param = request.args.get("table")
   if table_param:
     return tables.get(table_param)
@@ -193,13 +193,16 @@ def index(path):
     # ROUTINELY, NOT JUST ON A FULL RELOAD) STAY PINNED TO THE TABLE THIS PAGE WAS
     # RENDERED FOR EVEN IF A DIFFERENT TAB SHARING THE SAME SESSION COOKIE LATER
     # SWITCHES TABLES
-    # dev_tables POPULATES #dev-table-select (DEV-ONLY MARKUP) - ONLY WORTH COMPUTING
-    # FOR AN ACTUAL DEV
-    dev_tables = sorted(tables.keys(), key=_table_sort_key) if is_dev_user() else None
-    return render_template('game_client.j2.html', home=True, table_id=target.name, dev_tables=dev_tables)
+    # admin_tables POPULATES #admin-table-select (ADMIN-ONLY MARKUP) - ONLY WORTH COMPUTING
+    # FOR AN ACTUAL ADMIN
+    admin_tables = sorted(tables.keys(), key=_table_sort_key) if is_admin_user() else None
+    return render_template('game_client.j2.html', home=True, table_id=target.name, admin_tables=admin_tables)
 
-  # DEV ENDPOINTS REQUIRE A LOGGED-IN DEV USER; API HELPERS ANY LOGGED-IN PLAYER
-  if path.startswith("dev/") and not is_dev_user():
+  # ADMIN ENDPOINTS REQUIRE A LOGGED-IN ADMIN USER; API HELPERS ANY LOGGED-IN PLAYER.
+  # dev/cards IS A DEVELOPMENT TOOL (VISUAL CARD-RENDERING QA), NOT AN ADMIN-USER
+  # CONCEPT - SAME JUSTIFICATION AS dev_random_bot/DEVELOPMENT.md - BUT STILL GATED
+  # ON is_admin_user() LIKE EVERYTHING ELSE HERE, SO IT NEEDS ITS OWN EXPLICIT CHECK.
+  if (path.startswith("admin/") or path == "dev/cards") and not is_admin_user():
     return "forbidden", 403
   if path.startswith("api/") and not current_user():
     return "forbidden", 403
@@ -271,41 +274,41 @@ def index(path):
   if path == "dev/cards": # VISUAL REVIEW OF THE CARD BACK + ALL 43 FACES (SHARED PROTO CARD)
     return render_template('cards_review.j2.html')
 
-  if path == "dev/reinit": # DEV-ONLY: REINIT ANY TABLE VIA #dev-table-select
-    target = dev_target_table()
+  if path == "admin/reinit": # ADMIN-ONLY: REINIT ANY TABLE VIA #admin-table-select
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to reinitialise table '{target.name}' (DEV FEATURE, by '{current_user()}')")
+    log(f"Flask Request to reinitialise table '{target.name}' (ADMIN FEATURE, by '{current_user()}')")
     if target.state_name() != "DEALING":
       target.__init__(target.name, socketio_init=socketio) # KEEPS THE TABLE'S OWN NAME
       target.clear_autosave()
       target.sio_push()
-      target.sio_toast(f"Table reinitialised by {current_user()} (dev)", kind="warning", seconds=6, category="GAME MANAGEMENT")
+      target.sio_toast(f"Table reinitialised by {current_user()} (admin)", kind="warning", seconds=6, category="GAME MANAGEMENT")
     return "ok"
 
-  if path == "dev/delete_table": # DEV-ONLY: PERMANENTLY DELETE ANY TABLE (SAME TEARDOWN AS REAPING)
-    target = dev_target_table()
+  if path == "admin/delete_table": # ADMIN-ONLY: PERMANENTLY DELETE ANY TABLE (SAME TEARDOWN AS REAPING)
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
     name = target.name
-    log(f"Flask Request to DELETE table '{name}' (DEV FEATURE, by '{current_user()}')")
+    log(f"Flask Request to DELETE table '{name}' (ADMIN FEATURE, by '{current_user()}')")
     delete_table(name, f"deleted by {current_user()}")
     return "ok"
 
-  if path == "dev/save":
-    target = dev_target_table()
+  if path == "admin/save":
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to save dev checkpoint (DEV FEATURE)")
-    target.save_state(target.checkpoint_path, reason="(dev checkpoint)")
+    log(f"Flask Request to save admin checkpoint (ADMIN FEATURE)")
+    target.save_state(target.checkpoint_path, reason="(admin checkpoint)")
     target.sio_toast(f"Checkpoint saved by {current_user()}", kind="success", category="GAME MANAGEMENT")
     return "ok"
 
-  if path == "dev/load":
-    target = dev_target_table()
+  if path == "admin/load":
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to load dev checkpoint (DEV FEATURE)")
+    log(f"Flask Request to load admin checkpoint (ADMIN FEATURE)")
     user = current_user() # CAPTURED NOW - THE WORKER THREAD HAS NO REQUEST CONTEXT
     def load_and_toast():
       if target.restore_state(target.checkpoint_path):
@@ -315,11 +318,11 @@ def index(path):
     schedule_t.jobqueue.put(load_and_toast) # on the worker so it can't interleave with auto jobs
     return "ok"
 
-  if path == "dev/clearchk":
-    target = dev_target_table()
+  if path == "admin/clearchk":
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to clear dev checkpoint (DEV FEATURE)")
+    log(f"Flask Request to clear admin checkpoint (ADMIN FEATURE)")
     if os.path.exists(target.checkpoint_path):
       os.remove(target.checkpoint_path)
       target.sio_toast(f"Checkpoint cleared by {current_user()}", category="GAME MANAGEMENT")
@@ -327,11 +330,11 @@ def index(path):
       target.sio_toast("No checkpoint to clear", category="SERVER ERROR")
     return "ok"
 
-  if path == "dev/test":
-    target = dev_target_table()
+  if path == "admin/test":
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to toggle test mode automation (DEV FEATURE)")
+    log(f"Flask Request to toggle test mode automation (ADMIN FEATURE)")
     target.test_mode = not target.test_mode
     if target.test_mode:
       schedule_t.jobqueue.put(lambda: bots.dev_random_seat_bots(target))
@@ -339,23 +342,23 @@ def index(path):
     target.sio_toast(f"Test mode {'enabled' if target.test_mode else 'disabled'} by {current_user()}",
                    kind="warning" if target.test_mode else "info", category="GAME MANAGEMENT")
     return "ok"
-  if path == "dev/skipdelays":
-    target = dev_target_table()
+  if path == "admin/skipdelays":
+    target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to toggle skip delays (DEV FEATURE)")
+    log(f"Flask Request to toggle skip delays (ADMIN FEATURE)")
     target.skip_delays = not target.skip_delays
     target.sio_push()
     target.sio_toast(f"Skip delays {'enabled' if target.skip_delays else 'disabled'} by {current_user()}",
                    kind="warning" if target.skip_delays else "info", category="GAME MANAGEMENT")
     return "ok"
 
-  if path == "dev/uptime":
+  if path == "admin/uptime":
     return jsonify({"version": VERSION,
                     "started": SERVICE_START, "uptime": time.time() - SERVICE_START,
                     "restart_enabled": bool(RESTART_COMMAND)})
 
-  if path == "dev/restart":
+  if path == "admin/restart":
     if not RESTART_COMMAND:
       return "restart command not configured", 501
     log(f"Flask Request to RESTART THE SERVICE (by '{current_user()}'): {RESTART_COMMAND}")
@@ -417,7 +420,7 @@ def inject_data():
       'timeNow': datetime.now(),
       'version': VERSION,
       'session_username': current_user() or "",
-      'session_is_dev': is_dev_user(),
+      'session_is_admin': is_admin_user(),
       'bots_enabled': BOTS_ENABLED,
     }
 
