@@ -889,6 +889,14 @@ select:focus {
 #rules-modal .hide-rules {
   flex-shrink: 0;
 }
+/* #rules-modal .modal-box IS align-items: center (ABOVE) SO THE LOGO/SCROLL
+   AREA CENTRE PROPERLY - BUT THAT SAME RULE MAKES ANY OTHER FLEX-ITEM CHILD
+   (INCLUDING THIS .modal-actions WRAPPER) SHRINK TO ITS OWN CONTENT WIDTH
+   INSTEAD OF STRETCHING, SO .modal-actions button's width:100% HAS NOTHING
+   FULL-WIDTH TO BE 100% OF. FORCE IT BACK TO THE FULL AVAILABLE WIDTH HERE. */
+#rules-modal .modal-actions {
+  width: 100%;
+}
 .rules-scroll h6 {
   margin: 1.25rem 0 0.4rem;
   color: var(--primary-color-light);
@@ -928,9 +936,12 @@ select:focus {
   line-height: 1.5;
 }
 
-/* BID SCORE REFERENCE TABLE */
+/* BID SCORE REFERENCE TABLE - SAME BORDER/STRIPE TREATMENT AS .score-table
+   (SCOREBOARD MODAL) FOR CONSISTENCY: GREY (var(--border-subtle)) BORDERS
+   THROUGHOUT, THICKER 2px OUTER/HEADER-BOTTOM, ZEBRA BODY ROWS */
 .bid-ref-table {
   border-collapse: collapse;
+  border: 2px solid var(--border-subtle);
 }
 .bid-ref-table th,
 .bid-ref-table td {
@@ -938,21 +949,63 @@ select:focus {
   text-align: center;
 }
 .bid-ref-table thead th {
-  border-bottom: 1px solid var(--border-strong);
-  color: var(--fg-medium);
+  background-color: var(--fg-lighter);
+  color: var(--bg-darker);
   font-weight: 600;
+  border-bottom: 2px solid var(--border-subtle);
+}
+/* THE DIAMOND/HEART HEADER CELLS CARRY .suit-red (cards.css) FOR THEIR RED
+   GLYPH - WITHOUT THIS, thead th's OWN color ABOVE WINS ON SPECIFICITY (TWO
+   ELEMENT SELECTORS BEAT ONE CLASS) AND FLATTENS THEM TO THE SAME DARK TEXT
+   AS EVERY OTHER HEADER CELL */
+.bid-ref-table thead th.suit-red {
+  color: var(--card-red);
 }
 .bid-ref-table th:first-child,
 .bid-ref-table td:first-child {
   border-right: 1px solid var(--border-subtle);
 }
+.bid-ref-table tbody tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.05); /* very light zebra tint */
+}
 .bid-ref-table tbody tr + tr td {
   border-top: 1px solid var(--border-subtle);
 }
 
-/* SCOREBOARD PER-HAND TABLE */
+/* SCOREBOARD MODAL: A THREE-LEVEL flex COLUMN CHAIN (modal-box > .scores >
+   fieldset), EACH LEVEL min-height:0 SO IT CAN SHRINK PAST ITS CONTENT'S NATURAL
+   SIZE, WITH ONLY ONE flex:1 CHILD AT EACH LEVEL - THE ONE LEADING DOWN TO
+   .score-table-scroll. EVERYTHING ELSE (LOGO, LEGEND, BUTTONS, THE DIALOG LINE,
+   THE CREDITS FOOTER) STAYS ITS OWN NATURAL SIZE. NET EFFECT: THE MODAL GROWS
+   TOWARD ITS OWN max-height (92vh, .modal-box) FIRST, AND ONLY THE TABLE ROWS
+   SCROLL INTERNALLY ONCE THAT'S EXHAUSTED - NOT SCOPED PAST #scores-modal, SO NO
+   OTHER MODAL'S .modal-box LAYOUT CHANGES */
+#scores-modal .modal-box {
+  display: flex;
+  flex-direction: column;
+}
+#scores-modal .scores {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#scores-modal .scores > fieldset {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* FLEX CONTAINERS DEFAULT align-items TO stretch - WITHOUT THIS THE <legend>
+   STRETCHES TO THE FIELDSET'S FULL WIDTH (A FLEX ITEM LIKE ANY OTHER), SO THE
+   NATIVE BORDER-NOTCH BEHIND IT ENDS UP MUCH WIDER THAN THE TEXT, READING AS A
+   BIG BLANK GAP OF LEGEND BACKGROUND BEFORE THE TEXT STARTS */
+#scores-modal .scores > fieldset > legend {
+  align-self: flex-start;
+}
 .score-table-scroll {
-  max-height: 45vh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: none; /* Firefox */
 }
@@ -961,15 +1014,24 @@ select:focus {
 }
 .score-table {
   border-collapse: collapse;
+  /* FIXED LAYOUT + EXPLICIT 50/50 WIDTHS BELOW SO TEAM 1/TEAM 2 STAY EQUAL WIDTH
+     REGARDLESS OF WHICH SIDE'S CONTRACT DETAIL TEXT IS LONGER (table-layout: auto
+     WOULD OTHERWISE SIZE EACH COLUMN TO ITS OWN CONTENT). min-width KEEPS BOTH
+     COLUMNS READABLE EVEN WHEN BOTH SIDES' TEXT IS SHORT; .modal-box's OWN
+     max-width (styling.css) IS ALREADY GENEROUS ENOUGH TO LET THE MODAL GROW TO FIT. */
+  table-layout: fixed;
+  width: 100%;
+  min-width: 28rem;
+  border: 2px solid var(--border-subtle);
 }
 /* 1rem cell padding, zebra rows, heading flipped to dark-on-light, outcome colours +
    bolder running totals (spans set by scoreCell) */
 .score-table th,
 .score-table td {
+  width: 50%;
   padding: 1rem;
   text-align: center;
 }
-.score-table th:first-child,
 .score-table td:first-child {
   border-right: 1px solid var(--border-subtle);
 }
@@ -979,7 +1041,10 @@ select:focus {
   background-color: var(--fg-lighter);
   color: var(--bg-darker);
   font-weight: 600;
-  box-shadow: 0 1px 0 var(--border-strong);
+  border-bottom: 2px solid var(--border-subtle);
+}
+.score-table thead th:first-child {
+  border-right: 1px solid var(--border-subtle);
 }
 .score-table tbody td {
   line-height: 1.3rem;

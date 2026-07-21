@@ -122,7 +122,7 @@ function refreshAdminTableSelect() {
       html +=
         '<option value="' +
         escapeHtml(t.name) +
-        '">' +
+        '">Controlling ' +
         escapeHtml(t.name) +
         "</option>";
     });
@@ -644,7 +644,6 @@ function processGameStateData(data) {
       data.game_dialog,
   );
 
-  $(".game-state").text(`STATE: ${gameState}`);
   var newDialogTimer;
   // dialogs render via .html() (robot icon for bot names), so the "changed?" check
   // compares the raw server string, not the rendered text
@@ -1230,19 +1229,21 @@ function processGameStateData(data) {
   }
   if (numHands == 0) {
     scoreRows =
-      "<tr><td colspan='2' class='italic c-gray'>No scores yet</td></tr>";
+      "<tr><td colspan='2' class='italic' style='color: var(--primary-color-light)'>No scores yet…</td></tr>";
   }
   $(".score-rows").html(scoreRows);
   if ($("#scores-modal").is(":visible")) {
     scrollScoresToBottom();
   }
 
-  // .html() + displayName so bot names render the robot icon
+  // displayName() PER NAME (NOT ON THE JOINED STRING) SO escapeHtml() INSIDE IT
+  // NEVER MANGLES THE <br> INTO &lt;br&gt; - .html() + displayName SO BOT NAMES
+  // RENDER THE ROBOT ICON
   $(".team-1-players").html(
-    displayName(data.players[0].name + " | " + data.players[2].name),
+    displayName(data.players[0].name) + "<br>" + displayName(data.players[2].name),
   );
   $(".team-2-players").html(
-    displayName(data.players[1].name + " | " + data.players[3].name),
+    displayName(data.players[1].name) + "<br>" + displayName(data.players[3].name),
   );
 }
 

@@ -414,69 +414,84 @@
                 Web<span style="color: var(--primary-color)">500</span>
               </div>
             </div>
-            <h5 class="my-3">Seating Selection</h5>
-            <p class="bold mb-2">{{ table_id }}</p>
             <div id="choose-seat-div" class="m-3" style="display: none">
-              <p class="my-4">
-                Please choose a seat,
-                <span id="chosen-username" class="italic"></span>
-                .
-              </p>
-              <div class="my-2">
-                <p class="mb-2 bold">Team 1</p>
-                <p>
-                  <button
-                    data-seat-number="1"
-                    type="button"
-                    class="seat-select button-success"
-                    disabled
-                  >
-                    Seat 1 (vacant)
-                  </button>
-                  <button
-                    data-seat-number="3"
-                    type="button"
-                    class="seat-select button-success"
-                    disabled
-                  >
-                    Seat 3 (vacant)
-                  </button>
+              <fieldset
+                class="p-3 my-3 border-rounded"
+                style="border: 1px solid var(--primary-color)"
+              >
+                <legend
+                  class="bold"
+                  style="
+                    color: var(--primary-color-light);
+                    background-color: var(--bg-darker);
+                    padding: 0 1rem;
+                    margin-bottom: -1rem;
+                  "
+                >
+                  {{ table_id }}
+                </legend>
+                <p class="my-4">
+                  Please choose a seat,
+                  <span id="chosen-username" class="italic"></span>
+                  .
                 </p>
-              </div>
-              <div class="my-2">
-                <p class="mb-2 bold">Team 2</p>
-                <p>
-                  <button
-                    data-seat-number="2"
-                    type="button"
-                    class="seat-select button-success"
-                    disabled
-                  >
-                    Seat 2 (vacant)
+                <div class="my-2">
+                  <p class="mb-2 bold">Team 1</p>
+                  <p>
+                    <button
+                      data-seat-number="1"
+                      type="button"
+                      class="seat-select button-success"
+                      disabled
+                    >
+                      Seat 1 (vacant)
+                    </button>
+                    <button
+                      data-seat-number="3"
+                      type="button"
+                      class="seat-select button-success"
+                      disabled
+                    >
+                      Seat 3 (vacant)
+                    </button>
+                  </p>
+                </div>
+                <div class="my-2">
+                  <p class="mb-2 bold">Team 2</p>
+                  <p>
+                    <button
+                      data-seat-number="2"
+                      type="button"
+                      class="seat-select button-success"
+                      disabled
+                    >
+                      Seat 2 (vacant)
+                    </button>
+                    <button
+                      data-seat-number="4"
+                      type="button"
+                      class="seat-select button-success"
+                      disabled
+                    >
+                      Seat 4 (vacant)
+                    </button>
+                  </p>
+                </div>
+                <!-- FILLS THE REMAINING EMPTY SEATS WITH SERVER-SIDE PLAYER BOTS (bots.py).
+                     HIDDEN UNTIL THIS PLAYER IS SEATED AND A SEAT IS STILL VACANT - THE
+                     SERVER ENFORCES THE SAME RULE, THE BUTTON JUST MIRRORS IT -->
+                <div class="modal-actions mt-4">
+                  <button type="button" id="add-bots" style="display: none">
+                    ADD BOTS
                   </button>
-                  <button
-                    data-seat-number="4"
-                    type="button"
-                    class="seat-select button-success"
-                    disabled
-                  >
-                    Seat 4 (vacant)
-                  </button>
-                </p>
-              </div>
-              <!-- FILLS THE REMAINING EMPTY SEATS WITH SERVER-SIDE PLAYER BOTS (bots.py).
-                   HIDDEN UNTIL THIS PLAYER IS SEATED AND A SEAT IS STILL VACANT - THE
-                   SERVER ENFORCES THE SAME RULE, THE BUTTON JUST MIRRORS IT -->
-              <p class="my-2 mt-4">
-                <button type="button" id="add-bots" style="display: none">
-                  ADD BOTS
-                </button>
-              </p>
-              <!-- BACK TO THE TABLE PICKER - ONLY OFFERED WHILE WAITING FOR PLAYERS
-                   (game_client.js GATES IT ON gameState, NOT JUST connected). At
-                   this state nothing's been dealt, so /api/change_table properly
-                   vacates the seat rather than orphaning it. -->
-              <p class="my-2">
+                </div>
+              </fieldset>
+              <!-- BACK TO THE TABLE PICKER - OFFERED WHILE WAITING FOR PLAYERS (nothing's
+                   been dealt yet, so /api/change_table properly vacates the seat rather
+                   than orphaning it) OR ANY TIME THE VIEWER ISN'T SEATED (nothing to
+                   vacate, and otherwise they'd be stranded on a table that moved on
+                   without them - see game_client.js's updateComponentVisibility). -->
+              <div class="modal-actions">
                 <button
                   type="button"
                   class="change-table"
@@ -484,16 +499,13 @@
                 >
                   CHANGE TABLE
                 </button>
-              </p>
+              </div>
             </div>
             <div class="py-2">
               <span class="game-dialog italic">&nbsp;</span>
             </div>
 
             <div class="modal-meta">
-              <button type="button" class="toggle-bid-ref">BID VALUES</button>
-              <br />
-              <button type="button" class="show-rules">GAME RULES</button>
               <small>
                 Created by
                 <a href="https://danricho.com" target="_blank">danricho</a>
@@ -526,7 +538,7 @@
                 x="0px"
                 y="0px"
                 viewBox="0 0 100 73.54"
-                style="width: 80px"
+                style="width: 40px"
                 fill="currentColor"
               >
                 <path
@@ -538,39 +550,62 @@
                 L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z"
                 />
               </svg>
-              <div class="" style="font-size: 4rem; font-weight: bold">
+              <div class="" style="font-size: 2rem; font-weight: bold">
                 <!-- prettier-ignore -->
                 Web<span style="color: var(--primary-color)">500</span>
               </div>
             </div>
-            <h5 class="my-3">Scoreboard</h5>
             <div class="scores">
-              <div class="score-table-scroll">
-                <table class="score-table mx-auto my-3">
-                  <thead>
-                    <tr>
-                      <th>
-                        <span class="bold">Team 1</span>
-                        <br />
-                        <span class="team-1-players italic"></span>
-                      </th>
-                      <th>
-                        <span class="bold">Team 2</span>
-                        <br />
-                        <span class="team-2-players italic"></span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody class="score-rows"></tbody>
-                </table>
+              <fieldset
+                class="p-3 my-3 border-rounded"
+                style="border: 1px solid var(--primary-color)"
+              >
+                <legend
+                  class="bold"
+                  style="
+                    color: var(--primary-color-light);
+                    background-color: var(--bg-darker);
+                    padding: 0 1rem;
+                    margin-bottom: -1rem;
+                  "
+                >
+                  SCOREBOARD
+                </legend>
+                <!-- ONLY THIS WRAPPER SCROLLS (flex:1;min-height:0 CHAIN IN
+                     styling.css, ROOTED AT #scores-modal .modal-box) - THE LOGO,
+                     LEGEND, BID VALUES/GAME RULES/CLOSE PANEL BUTTONS AND THE
+                     DIALOG LINE BELOW ALWAYS STAY FULLY VISIBLE, AND THE MODAL
+                     ITSELF IS FREE TO GROW ALMOST TO ITS OWN max-height (92vh,
+                     .modal-box) BEFORE THIS INNER SCROLLBAR EVER KICKS IN -->
+                <div class="score-table-scroll">
+                  <table class="score-table mx-auto my-3">
+                    <thead>
+                      <tr>
+                        <th>
+                          <span class="bold">Team 1</span>
+                          <br />
+                          <small class="team-1-players italic"></small>
+                        </th>
+                        <th>
+                          <span class="bold">Team 2</span>
+                          <br />
+                          <small class="team-2-players italic"></small>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody class="score-rows"></tbody>
+                  </table>
+                </div>
 
-                <button type="button" class="toggle-bid-ref mt-2">
-                  BID VALUES
-                </button>
-                <br />
-                <button type="button" class="show-rules">GAME RULES</button>
-                <br />
-                <button type="button" class="unforce-scores my-3">
+                <div class="modal-actions mt-4">
+                  <button type="button" class="toggle-bid-ref">
+                    BID VALUES
+                  </button>
+                  <button type="button" class="show-rules">GAME RULES</button>
+                </div>
+              </fieldset>
+              <div class="modal-actions my-3">
+                <button type="button" class="unforce-scores">
                   CLOSE PANEL
                 </button>
               </div>
@@ -629,28 +664,48 @@
                 Web<span style="color: var(--primary-color)">500</span>
               </div>
             </div>
-            <h5 class="my-2">User Settings</h5>
             <div class="modal-actions mt-3">
-              <button
-                type="button"
-                id="toggle-card-layout"
-                class="button-small btn-outline-secondary"
-                onclick="event.preventDefault()"
+              <fieldset
+                class="p-3 my-3 border-rounded"
+                style="border: 1px solid var(--primary-color)"
               >
-                CARDS: NATURAL
-              </button>
-              <button type="button" id="clear-local-data" class="button-small">
-                CLEAR SAVED SETTINGS
-              </button>
-              <!-- manual browser refresh (handy on iOS where a stale client needs
-                   a reload) -->
-              <button
-                type="button"
-                id="reload-client"
-                class="button-small mt-4"
-              >
-                RELOAD CLIENT
-              </button>
+                <legend
+                  class="bold"
+                  style="
+                    color: var(--primary-color-light);
+                    background-color: var(--bg-darker);
+                    padding: 0 1rem;
+                    margin-bottom: -1rem;
+                  "
+                >
+                  USER SETTINGS
+                </legend>
+                <p class="bold mt-2 mb-2">
+                  Logged in as
+                  <span class="italic">{{ session_username }}</span>
+                </p>
+                <button type="button" id="logout" class="button-small mb-3">
+                  LOG OUT
+                </button>
+                <button
+                  type="button"
+                  id="toggle-card-layout"
+                  class="button-small btn-outline-secondary"
+                  onclick="event.preventDefault()"
+                >
+                  CARDS: NATURAL
+                </button>
+                <div class="modal-btn-row mt-4">
+                  <button type="button" id="clear-local-data" class="button-small">
+                    CLEAR SAVED SETTINGS
+                  </button>
+                  <!-- manual browser refresh (handy on iOS where a stale client needs
+                       a reload) -->
+                  <button type="button" id="reload-client" class="button-small">
+                    RELOAD CLIENT
+                  </button>
+                </div>
+              </fieldset>
               {% if not session_is_admin %}
               <!-- NON-ADMIN PLAYERS: REINIT IS ALWAYS THEIR OWN CURRENT TABLE, NO
                    PICKER. ADMINS GET AN EQUIVALENT CONTROL INSIDE #admin-section BELOW,
@@ -674,13 +729,13 @@
                   class="bold"
                   style="
                     color: var(--primary-color-light);
+                    background-color: var(--bg-darker);
                     padding: 0 1rem;
                     margin-bottom: -1rem;
                   "
                 >
                   ADMIN CONTROLS
                 </legend>
-                <div class="game-state bold">NOT CONNECTED</div>
 
                 <!-- SCOPES EVERY ADMIN BUTTON BELOW (SAVE/LOAD/CLEAR CHECKPOINT, TEST
                      MODE, SKIP DELAYS, REINIT, DELETE) TO WHICHEVER TABLE IS PICKED
@@ -692,15 +747,11 @@
                      SHOW) - refreshAdminTableSelect() IN game_client.js RE-FETCHES
                      /api/tables AND REBUILDS IT EVERY TIME THE SETTINGS MODAL OPENS
                      (SAME "RE-ASK ON OPEN" PATTERN AS #service-uptime) -->
-                <p class="bold mt-2 mb-2">
-                  <label for="admin-table-select" style="display: inline"
-                    >Admin actions target:</label
-                  >
-
+                <p class="mt-2 mb-2">
                   <select id="admin-table-select" class="mb-2">
                     {% for name in admin_tables %}
                     <!-- prettier-ignore -->
-                    <option value="{{ name }}" {% if name == table_id %}selected{% endif %}>{{ name }}</option>
+                    <option value="{{ name }}" {% if name == table_id %}selected{% endif %}>Controlling {{ name }}</option>
                     {% endfor %}
                   </select>
                 </p>
@@ -798,13 +849,6 @@
               </fieldset>
               {% endif %}
 
-              <p class="bold mt-4">
-                Logged in as
-                <span class="italic">{{ session_username }}</span>
-              </p>
-              <button type="button" id="logout" class="button-small">
-                LOG OUT
-              </button>
               <button type="button" class="hide-settings mt-4">
                 CLOSE PANEL
               </button>
@@ -848,75 +892,90 @@
                 Web<span style="color: var(--primary-color)">500</span>
               </div>
             </div>
-            <h5 class="my-2">BID VALUES</h5>
             <div class="mt-3">
-              <table class="bid-ref-table mx-auto">
-                <thead>
-                  <tr>
-                    <th>Tricks</th>
-                    <th>&spades;&#xFE0E;</th>
-                    <th>&clubs;&#xFE0E;</th>
-                    <th class="suit-red">&diams;&#xFE0E;</th>
-                    <th class="suit-red">&hearts;&#xFE0E;</th>
-                    <th>No Trumps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>6</td>
-                    <td>40</td>
-                    <td>60</td>
-                    <td>80</td>
-                    <td>100</td>
-                    <td>120</td>
-                  </tr>
-                  <tr>
-                    <td>7</td>
-                    <td>140</td>
-                    <td>160</td>
-                    <td>180</td>
-                    <td>200</td>
-                    <td>220</td>
-                  </tr>
-                  <tr>
-                    <td class="italic">Mis&egrave;re (10)</td>
-                    <td colspan="5">250</td>
-                  </tr>
-                  <tr>
-                    <td>8</td>
-                    <td>240</td>
-                    <td>260</td>
-                    <td>280</td>
-                    <td>300</td>
-                    <td>320</td>
-                  </tr>
-                  <tr>
-                    <td>9</td>
-                    <td>340</td>
-                    <td>360</td>
-                    <td>380</td>
-                    <td>400</td>
-                    <td>420</td>
-                  </tr>
-                  <tr>
-                    <td>10</td>
-                    <td>440</td>
-                    <td>460</td>
-                    <td>480</td>
-                    <td>500</td>
-                    <td>520</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p class="mt-3">
-                <small>Slam: winning all 10 tricks scores at least 250.</small>
-              </p>
-              <p>
-                <small>Non-contract team scores 10 per trick won.</small>
-              </p>
-              <button type="button" class="hide-bid-ref mt-4">
-                CLOSE PANEL
-              </button>
+              <fieldset
+                class="p-3 my-3 border-rounded"
+                style="border: 1px solid var(--primary-color)"
+              >
+                <legend
+                  class="bold"
+                  style="
+                    color: var(--primary-color-light);
+                    background-color: var(--bg-darker);
+                    padding: 0 1rem;
+                    margin-bottom: -1rem;
+                  "
+                >
+                  BID VALUES
+                </legend>
+                <table class="bid-ref-table mx-auto my-3">
+                  <thead>
+                    <tr>
+                      <th>Tricks</th>
+                      <th>&spades;&#xFE0E;</th>
+                      <th>&clubs;&#xFE0E;</th>
+                      <th class="suit-red">&diams;&#xFE0E;</th>
+                      <th class="suit-red">&hearts;&#xFE0E;</th>
+                      <th>No Trumps</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>6</td>
+                      <td>40</td>
+                      <td>60</td>
+                      <td>80</td>
+                      <td>100</td>
+                      <td>120</td>
+                    </tr>
+                    <tr>
+                      <td>7</td>
+                      <td>140</td>
+                      <td>160</td>
+                      <td>180</td>
+                      <td>200</td>
+                      <td>220</td>
+                    </tr>
+                    <tr>
+                      <td class="italic">Mis&egrave;re (10)</td>
+                      <td colspan="5">250</td>
+                    </tr>
+                    <tr>
+                      <td>8</td>
+                      <td>240</td>
+                      <td>260</td>
+                      <td>280</td>
+                      <td>300</td>
+                      <td>320</td>
+                    </tr>
+                    <tr>
+                      <td>9</td>
+                      <td>340</td>
+                      <td>360</td>
+                      <td>380</td>
+                      <td>400</td>
+                      <td>420</td>
+                    </tr>
+                    <tr>
+                      <td>10</td>
+                      <td>440</td>
+                      <td>460</td>
+                      <td>480</td>
+                      <td>500</td>
+                      <td>520</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="mt-3" style="color: var(--primary-color-light)">
+                  <small>Slam: winning all 10 tricks scores at least 250.</small>
+                </p>
+                <p style="color: var(--primary-color-light)">
+                  <small>Non-contract team scores 10 per trick won.</small>
+                </p>
+              </fieldset>
+              <div class="modal-actions mt-4">
+                <button type="button" class="hide-bid-ref">CLOSE PANEL</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1170,7 +1229,9 @@
                 </small>
               </div>
             </div>
-            <button type="button" class="hide-rules mt-3">CLOSE PANEL</button>
+            <div class="modal-actions mt-3">
+              <button type="button" class="hide-rules">CLOSE PANEL</button>
+            </div>
           </div>
         </div>
       </div>
