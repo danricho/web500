@@ -41,15 +41,19 @@
         text-align: left;
         margin: 1.5rem 0;
       }
+      /* fieldset PER TABLE - LEGEND IS THE TABLE NAME (SET IN renderTables()) */
       .table-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
+        min-width: 0;
         padding: 0.6rem 0.8rem;
         margin: 0.4rem 0;
         border: 1px solid var(--primary-color);
         border-radius: 8px;
+      }
+      .table-row-body {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
       }
       /* .table-row .table-seats {
         font-size: 0.95rem;
@@ -186,10 +190,12 @@
             action = '<span class="italic" style="opacity: 0.7">FULL</span>';
           }
           html +=
-            '<div class="table-row"><div><div class="bold" style="color: var(--primary-color-light)">' +
+            '<fieldset class="table-row"><legend class="bold" style="color: var(--primary-color-light); padding: 0 1rem; margin-bottom: -1rem;">' +
             escapeHtml(t.name) +
-            ' <small class="italic">(' + escapeHtml(t.state) + ")</small></div>" +
-            '<div class="table-seats">' + seats + "</div></div>" + action + "</div>";
+            "</legend>" +
+            '<div class="table-row-body"><div>' +
+            '<small class="italic">(' + escapeHtml(t.state) + ")</small>" +
+            '<div class="table-seats">' + seats + "</div></div>" + action + "</div></fieldset>";
         });
         container.innerHTML = html;
       }

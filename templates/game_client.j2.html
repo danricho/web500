@@ -664,11 +664,21 @@
               {% endif %} {% if session_is_dev %}
               <!-- DEV-ONLY SECTION: RENDERED SERVER-SIDE FOR dev_users ONLY (the
                    /dev/* endpoints re-check the session on every call) -->
-              <div
+              <fieldset
                 id="dev-section"
                 class="p-3 my-3 border-rounded"
                 style="border: 1px solid var(--primary-color)"
               >
+                <legend
+                  class="bold"
+                  style="
+                    color: var(--primary-color-light);
+                    padding: 0 1rem;
+                    margin-bottom: -1rem;
+                  "
+                >
+                  DEV CONTROLS
+                </legend>
                 <div class="game-state bold">NOT CONNECTED</div>
 
                 <!-- SCOPES EVERY DEV BUTTON BELOW (SAVE/LOAD/CLEAR CHECKPOINT, TEST
@@ -780,7 +790,7 @@
                 >
                   RESTART SERVICE
                 </button>
-              </div>
+              </fieldset>
               {% endif %}
 
               <p class="bold mt-4">
