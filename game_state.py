@@ -680,13 +680,31 @@ class GameStateMachine:
   FOCUS_NUDGE_S = 10
   def check_focus_idle(self):
     now = datetime.now()
-    key = (self.player_focus, self.state) # focus pointer + state identify a "stint"
+    state_name = self.state_name()
+    # A CHEAP, STRICTLY-INCREASING-PER-TURN ORDINAL WITHIN THE CURRENT HAND, FOLDED
+    # INTO THE STINT KEY BELOW. PLAIN (player_focus, state) ISN'T UNIQUE ENOUGH ON ITS
+    # OWN: A SEAT CAN LEGITIMATELY REGAIN FOCUS SEVERAL TIMES IN THE SAME STATE
+    # (ANOTHER BIDDING ROUND ON A REMAINING BIDDER; ONE TURN PER TRICK DURING PLAY).
+    # NORMALLY EVERY INTERVENING SEAT'S TURN PRODUCES A DIFFERENT KEY AND RE-ARMS THE
+    # TIMER, BUT THE SHARED MULTI-TABLE WORKER (ONE THREAD SERIALISING EVERY TABLE'S
+    # WORK, SEE poll_all_tables) CAN NOW LEAVE THIS ONCE-A-SECOND POLL BACKLOGGED LONG
+    # ENOUGH TO SKIP RIGHT OVER AN ENTIRE INTERVENING VISIT WHEN OTHER TABLES ARE BUSY
+    # - LANDING BACK ON A KEY THAT COINCIDENTALLY MATCHES ONE FROM SEVERAL TURNS AGO,
+    # INHERITING ITS STALE _focus_since AND NUDGING ALMOST INSTANTLY. THE ORDINAL BELOW
+    # MAKES EVERY VISIT UNIQUE REGARDLESS OF HOW MANY POLLS GOT SKIPPED.
+    if state_name == "TAKING BIDS":
+      turn_ordinal = len(self.bid_history)
+    elif state_name == "PLAY HAND":
+      turn_ordinal = len(self.trick_history) * 4 + len(self.current_trick)
+    else:
+      turn_ordinal = 0
+    key = (self.player_focus, self.state, turn_ordinal) # focus pointer + state + turn identify a "stint"
     if key != getattr(self, "_focus_key", None):
       self._focus_key, self._focus_since = key, now
       return
     if self.player_focus == None:
       return
-    if self.state_name() not in ("TAKING BIDS", "AWARD KITTY", "PLAY HAND"):
+    if state_name not in ("TAKING BIDS", "AWARD KITTY", "PLAY HAND"):
       return
     name = self.players[self.player_focus].name
     if self.player_focus in self.player_bots or bots.is_dev_random_bot(name):
