@@ -90,7 +90,10 @@ function updateDevModeLabels() {
   var selected = $("#dev-table-select").val();
   var info =
     selected === tableId && lastPushData
-      ? { test_mode: lastPushData.test_mode, skip_delays: lastPushData.skip_delays }
+      ? {
+          test_mode: lastPushData.test_mode,
+          skip_delays: lastPushData.skip_delays,
+        }
       : devTablesData[selected];
   if (!info) return; // nothing known yet for that table - leave the label as-is
   $("#toggle-test").text("TEST MODE: " + (info.test_mode ? "ON" : "OFF"));
@@ -116,7 +119,12 @@ function refreshDevTableSelect() {
     var html = "";
     list.forEach(function (t) {
       devTablesData[t.name] = t;
-      html += "<option value=\"" + escapeHtml(t.name) + "\">" + escapeHtml(t.name) + "</option>";
+      html +=
+        '<option value="' +
+        escapeHtml(t.name) +
+        '">' +
+        escapeHtml(t.name) +
+        "</option>";
     });
     $("#dev-table-select").html(html);
     var stillExists = list.some(function (t) {
@@ -266,7 +274,9 @@ $.fn.updateArrayCards = function (cards) {
       $(value).toggleClass("rank-10", card.rank == 10);
       if (card.rank != 15) {
         $(value).addClass(SUIT_COL[card.suit]);
-        $(value).find("p.suit").html(suitIconSvg(card.suit, "inline-icon-cards"));
+        $(value)
+          .find("p.suit")
+          .html(suitIconSvg(card.suit, "inline-icon-cards"));
         $(value).find("p.rank").text(RANK_DISP[card.rank]);
       }
       $(value).show();
@@ -959,7 +969,11 @@ function processGameStateData(data) {
       // TO THE LAST COMPLETED TRICK WHILE CARDS ARE STILL ON THE TABLE.
       var trickOrder = data.current_trick || [];
       var trickHistory = data.trick_history || [];
-      if (trickOrder.length === 0 && tableCount > 0 && trickHistory.length > 0) {
+      if (
+        trickOrder.length === 0 &&
+        tableCount > 0 &&
+        trickHistory.length > 0
+      ) {
         trickOrder = trickHistory[trickHistory.length - 1].cards;
       }
       var playedCardIds = {};

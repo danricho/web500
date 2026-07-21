@@ -728,10 +728,12 @@
                     class="button-small"
                     onclick="
                       event.preventDefault();
-                      $.ajax({ url: '/dev/test' + devTableQuery() }).done(function () {
-                        $.ajax({ url: '/api/client_trigger_push' });
-                        refreshDevTableSelect();
-                      });
+                      $.ajax({ url: '/dev/test' + devTableQuery() }).done(
+                        function () {
+                          $.ajax({ url: '/api/client_trigger_push' });
+                          refreshDevTableSelect();
+                        },
+                      );
                     "
                     style="display: none"
                   >
@@ -743,10 +745,12 @@
                     class="button-small"
                     onclick="
                       event.preventDefault();
-                      $.ajax({ url: '/dev/skipdelays' + devTableQuery() }).done(function () {
-                        $.ajax({ url: '/api/client_trigger_push' });
-                        refreshDevTableSelect();
-                      });
+                      $.ajax({ url: '/dev/skipdelays' + devTableQuery() }).done(
+                        function () {
+                          $.ajax({ url: '/api/client_trigger_push' });
+                          refreshDevTableSelect();
+                        },
+                      );
                     "
                     style="display: none"
                   >
