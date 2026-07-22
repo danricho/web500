@@ -879,14 +879,27 @@
                 <div id="service-uptime" class="bold mt-5">
                   Service Uptime: --
                 </div>
-                <button
-                  type="button"
-                  id="restart-service"
-                  class="button-small"
-                  style="display: none"
-                >
-                  RESTART SERVICE
-                </button>
+                <div class="modal-btn-row">
+                  <button
+                    type="button"
+                    id="restart-service"
+                    class="button-small"
+                    style="display: none"
+                  >
+                    RESTART SERVICE
+                  </button>
+                  <!-- ALWAYS VISIBLE (UNLIKE THE OTHER ADMIN BUTTONS ABOVE) - IT'S JUST A
+                       STATIC LINK TO /dev/logs, NOT A LIVE GAME-STATE ACTION, SO THERE'S
+                       NOTHING FOR JS TO GATE ON. OPENS IN A NEW TAB SO THE SETTINGS MODAL
+                       (AND THE GAME BEHIND IT) STAYS OPEN. -->
+                  <button
+                    type="button"
+                    class="button-small"
+                    onclick="window.open('/dev/logs', '_blank')"
+                  >
+                    SERVER LOGS
+                  </button>
+                </div>
               </fieldset>
               {% endif %}
 

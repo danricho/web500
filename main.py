@@ -8,13 +8,16 @@ import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceb
 
 base_path = os.path.dirname(sys.argv[0]) +"/"
 
+SERVICE_UNIT_NAME = "web-500-web-server.service" # THIS HOST'S SYSTEMD UNIT - SHARED BY
+                # RESTART_COMMAND BELOW AND dev/logs' journalctl CALL
+
 # THE SHELL COMMAND /admin/restart RUNS. THE LIVE GAME SURVIVES A RESTART - IT IS
 # RESTORED FROM data/autosave.json AT STARTUP. SET TO None TO DISABLE THE BUTTON.
 # NEEDS PASSWORDLESS sudo (OR A ROOT SERVICE USER) TO WORK UNATTENDED.
-RESTART_COMMAND = "sudo systemctl restart web-500-web-server.service"
+RESTART_COMMAND = f"sudo systemctl restart {SERVICE_UNIT_NAME}"
 RESTART_DELAY_S = 0.5 # LET THE HTTP RESPONSE FLUSH BEFORE THE PROCESS IS KILLED
 
-VERSION = "v.2026.07.20.1" # version definition 
+VERSION = "v.2026.07.22.1" # version definition
                 # SINGLE SOURCE OF TRUTH - SHOWN ON THE CLIENT (MODAL CREDITS), LOGGED
                 # AT STARTUP AND SERVED BY /admin/uptime. BUMP ON RELEASE.
 PORT = 4030 # FLASK DEV SERVER ONLY - GUNICORN BINDS ITSELF (-b :4030 IN THE UNIT/README)
@@ -199,10 +202,11 @@ def index(path):
     return render_template('game_client.j2.html', home=True, table_id=target.name, admin_tables=admin_tables)
 
   # ADMIN ENDPOINTS REQUIRE A LOGGED-IN ADMIN USER; API HELPERS ANY LOGGED-IN PLAYER.
-  # dev/cards IS A DEVELOPMENT TOOL (VISUAL CARD-RENDERING QA), NOT AN ADMIN-USER
-  # CONCEPT - SAME JUSTIFICATION AS dev_random_bot/DEVELOPMENT.md - BUT STILL GATED
-  # ON is_admin_user() LIKE EVERYTHING ELSE HERE, SO IT NEEDS ITS OWN EXPLICIT CHECK.
-  if (path.startswith("admin/") or path == "dev/cards") and not is_admin_user():
+  # dev/cards AND dev/logs ARE DEVELOPMENT TOOLS (VISUAL CARD-RENDERING QA, RAW SERVICE
+  # LOG VIEWING), NOT AN ADMIN-USER CONCEPT - SAME JUSTIFICATION AS
+  # dev_random_bot/DEVELOPMENT.md - BUT STILL GATED ON is_admin_user() LIKE EVERYTHING
+  # ELSE HERE, SO THEY NEED THEIR OWN EXPLICIT CHECK.
+  if (path.startswith("admin/") or path in ("dev/cards", "dev/logs")) and not is_admin_user():
     return "forbidden", 403
   if path.startswith("api/") and not current_user():
     return "forbidden", 403
@@ -273,6 +277,27 @@ def index(path):
 
   if path == "dev/cards": # VISUAL REVIEW OF THE CARD BACK + ALL 43 FACES (SHARED PROTO CARD)
     return render_template('cards_review.j2.html')
+
+  if path == "dev/logs": # RAW SERVICE LOG VIEWER - READS VIA THE SAME PASSWORDLESS
+    # sudo journalctl RESTART_COMMAND ALREADY RELIES ON, SO NO EXTRA HOST SETUP NEEDED.
+    # ?n= CONTROLS HOW MANY TRAILING LINES (DEFAULTS TO 1000; NON-DIGIT/MISSING FALLS BACK).
+    n = request.args.get("n", "1000")
+    n = n if n.isdigit() else "1000"
+    try:
+      result = subprocess.run(
+        ["sudo", "-n", "journalctl", "-u", SERVICE_UNIT_NAME, "--no-pager", "-n", n],
+        capture_output=True, text=True, timeout=10)
+      log_text = result.stdout if result.returncode == 0 else (result.stdout + result.stderr)
+      # DROP sudo's OWN AUDIT LINES ("... : TTY=... ; PWD=... ; USER=root ; COMMAND=..."
+      # AND "pam_unix(sudo:session): ..."). THESE ARE SELF-INFLICTED NOISE - EVERY sudo
+      # CALL (INCLUDING THIS VERY journalctl FETCH, AND /admin/restart's systemctl) LOGS
+      # ONE, TAGGED UNDER THIS UNIT SINCE IT'S INVOKED FROM THE SERVICE'S OWN CGROUP.
+      # FILTERED AFTER -n, SO THE VISIBLE LINE COUNT CAN BE A LITTLE BELOW ?n=.
+      NOISE = ("root : PWD", "pam_unix(sudo")
+      log_text = "\n".join(l for l in log_text.splitlines() if not any(s in l for s in NOISE))
+    except Exception as e:
+      log_text = f"FAILED TO READ JOURNAL: {e}"
+    return render_template('dev_logs.j2.html', log_text=log_text, lines=n)
 
   if path == "admin/reinit": # ADMIN-ONLY: REINIT ANY TABLE VIA #admin-table-select
     target = admin_target_table()

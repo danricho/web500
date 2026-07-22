@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" class="height-100 width-100">
+  <head>
+    <meta charset="utf-8" />
+    <title>Web500 - Server Logs (dev)</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1"
+    />
+    <link rel="stylesheet" href="/static/vendor/css/normalize.css" />
+    <link rel="stylesheet" href="/static/vendor/css/skeleton.css" />
+    <link href="/static/layout.css?{{timeNow}}" rel="stylesheet" />
+    <link href="/static/styling.css?{{timeNow}}" rel="stylesheet" />
+    <style>
+      /* THIS PAGE SCROLLS - UNDO THE GAME CLIENT'S FIXED, MOUSE-DEAD BODY
+         (SAME OVERRIDE AS cards_review.j2.html) */
+      html,
+      body {
+        position: static !important;
+        overflow: auto !important;
+        pointer-events: auto;
+      }
+      #logs-bar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        padding: 0.75rem 1rem;
+        background-color: var(--bg-darker);
+        border-bottom: 1px solid var(--primary-color);
+        z-index: 1;
+      }
+      #logs-bar input[type="text"],
+      #logs-bar input[type="number"] {
+        margin: 0;
+      }
+      #logs-bar input[type="text"] {
+        flex: 1 1 240px;
+      }
+      #logs-bar input[type="number"] {
+        width: 90px;
+      }
+      #logs-bar button {
+        margin: 0;
+        width: auto;
+      }
+      #log-body {
+        padding: 0.5rem 1rem 2rem;
+        font-family: monospace;
+        line-height: 1;
+      }
+      .log-line {
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .log-line.log-hidden {
+        display: none;
+      }
+      @media (max-width: 550px) {
+        #log-body {
+          font-size: 0.8rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body class="height-100 width-100">
+    <div id="logs-bar">
+      <strong>SERVER LOGS (dev)</strong>
+      <form method="get" style="display: flex; gap: 0.5rem; margin: 0">
+        <input
+          type="number"
+          name="n"
+          value="{{ lines }}"
+          min="1"
+          max="20000"
+          title="trailing lines to fetch"
+        />
+        <button type="submit">REFRESH</button>
+      </form>
+      <input
+        type="text"
+        id="log-filter"
+        placeholder="Filter (case-insensitive substring)..."
+        oninput="filterLogs()"
+      />
+      <span id="filter-count" class="italic"></span>
+    </div>
+
+    <pre
+      id="log-body"
+    >{% for line in log_text.splitlines() %}<div class="log-line">{{ line }}</div>
+{% endfor %}</pre>
+
+    <script>
+      function filterLogs() {
+        var term = document.getElementById("log-filter").value.toLowerCase();
+        var lines = document.getElementsByClassName("log-line");
+        var shown = 0;
+        for (var i = 0; i < lines.length; i++) {
+          var match =
+            !term || lines[i].textContent.toLowerCase().indexOf(term) !== -1;
+          lines[i].classList.toggle("log-hidden", !match);
+          if (match) shown++;
+        }
+        document.getElementById("filter-count").textContent = term
+          ? shown + " / " + lines.length + " lines"
+          : "";
+      }
+      // JUMP TO THE BOTTOM (MOST RECENT) ON LOAD/REFRESH - THAT'S ALMOST ALWAYS WHAT YOU
+      // WANT. window.onload (NOT RUN-AT-PARSE-TIME) SO LAYOUT IS FINAL FIRST. NOTE: THIS
+      // IS body.scrollTop, NOT window.scrollTo() - <body> CARRIES THE GAME CLIENT'S
+      // .height-100 CLASS (height:100% FROM layout.css), SO WITH overflow:auto ABOVE THE
+      // BODY ITSELF IS THE SCROLLING BOX, NOT THE OUTER WINDOW - window.scrollTo() WOULD
+      // MOVE A VIEWPORT THAT NEVER OVERFLOWS AND SILENTLY DO NOTHING.
+      window.onload = function () {
+        document.body.scrollTop = document.body.scrollHeight;
+        document.documentElement.scrollTop =
+          document.documentElement.scrollHeight;
+      };
+    </script>
+  </body>
+</html>
