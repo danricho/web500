@@ -15,6 +15,7 @@
 
 from random import choice, sample, gauss, getrandbits, uniform
 from math import exp
+from playing_cards import SUIT_STR
 
 # SHARED BY BOTH BOT KINDS. SEATED NAMES CARRY A KIND PREFIX - THE PREFIX ALONE TELLS
 # THE TWO KINDS APART (AND ROUTES THE bot_check DISPATCHER):
@@ -545,6 +546,9 @@ class PlayerBot:
   # WEDGE THE BIDDING BY REPEATING A REJECTED BID.
   def decide_bid(self, view):
     PASS = {"pass": True, "suit": 1, "tricks": 6}
+    self.last_estimates = None # SET BELOW WHENEVER estimates IS COMPUTED - LETS THE
+    # CALLER (player_bot_check) LOG "ESTIMATED N, BID M" FOR OFFLINE TUNING REVIEW
+    # WITHOUT RECOMPUTING estimate_tricks ITSELF (SEE docs/BOTS.md)
 
     # AS THE LAST ACTIVE BIDDER THE SERVER OFFERS ONE OPTIONAL SELF-RAISE. ALMOST ALWAYS
     # DECLINE (RAISING OUR OWN CONTRACT ONLY ADDS RISK) - THE ONE HUMAN-PLAUSIBLE
@@ -566,6 +570,7 @@ class PlayerBot:
     belief = self.personality["confidence"] + PARTNER_BASE_TRICKS
     estimates = {s: estimate_tricks(view["hand"], s) + belief for s in (1, 2, 3, 4)}
     estimates[5] = estimate_tricks_nt(view["hand"]) + belief
+    self.last_estimates = estimates # SAME dict OBJECT - BID-READING BELOW STILL MUTATES IT
 
     # BID READING (PHASE 4): EVERY BID AT THE TABLE IS INFORMATION. THE PARTNER'S
     # SHOWN SUIT PROMISES TRICKS THERE (WEIGHTED BY HOW MUCH THIS BOT TRUSTS PARTNER
@@ -821,7 +826,14 @@ def player_bot_check(game):
     # CONTRACT TURNED INTO 6H AFTER THE WINNER "DECLINED" THE INCREASE)
     my_passed = view["bids"][view["seat"]]["passed"]
     if my_passed == False or my_passed == "WINNER_INCREASE_OPTION":
-      game.gui_bid(bot.name, bot.decide_bid(view))
+      decision = bot.decide_bid(view)
+      # GREP-FRIENDLY LINE FOR OFFLINE BOT-TUNING REVIEW (SEE docs/BOTS.md) - ESTIMATE
+      # VS ACTUAL BID, SEPARATE FROM THE PLAYER-FACING dlg_bid_* DIALOGS
+      if not decision["pass"] and bot.last_estimates:
+        est = bot.last_estimates.get(decision["suit"])
+        game.log(f"[BID_ESTIMATE] {bot.name} bid {decision['tricks']} {SUIT_STR[decision['suit']]} "
+                 f"(estimate={est:.2f} confidence={bot.personality['confidence']:.3f})")
+      game.gui_bid(bot.name, decision)
 
   elif view["state"] == "AWARD KITTY":
     # ONLY WHILE OUR KITTY IS STILL HELD: bot_check FIRES ON EVERY PUSH, AND WITHOUT

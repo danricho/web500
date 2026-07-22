@@ -1447,6 +1447,22 @@ class GameStateMachine:
     self.teams[(contracted_player_index + 1) % 2].score += opponent_points
     self.teams[(contracted_player_index + 1) % 2].history.append(dd({"points": opponent_points, "tricks": opponents_tricks, "contracted": False, "contract": [self.players[contracted_player_index].name, self.players[contracted_player_index].bid.tricks, self.players[contracted_player_index].bid.suit] }))
 
+    # SINGLE-LINE, GREP-FRIENDLY HAND SUMMARY FOR OFFLINE BOT-TUNING ANALYSIS (SEE
+    # docs/BOTS.md) - EVERYTHING A REVIEW NEEDS (ALL 4 SEATS, BID VS ACTUAL, AND THE
+    # CONTRACTOR'S confidence PERSONALITY IF THEY'RE A SMART BOT) IN ONE LINE, RATHER
+    # THAN RECONSTRUCTED FROM THE SEPARATE PLAYER-FACING dlg_* DIALOGS BELOW
+    contractor_bot = self.player_bots.get(contracted_player_index)
+    confidence = f"{contractor_bot['personality']['confidence']:.3f}" if contractor_bot else "n/a"
+    self.log(
+      f"[HAND_SUMMARY] contractor={self.players[contracted_player_index].name} "
+      f"partner={self.players[(contracted_player_index + 2) % 4].name} "
+      f"bid={contracted_tricks} suit={SUIT_STR[self.players[contracted_player_index].bid.suit]} "
+      f"won={contractors_tricks} {'MADE' if contractor_points > 0 else 'FAILED'} "
+      f"confidence={confidence} "
+      f"opp1={self.players[(contracted_player_index + 1) % 4].name} "
+      f"opp2={self.players[(contracted_player_index + 3) % 4].name}"
+    )
+
     # WALK THE RESULT OUT ONE DIALOG AT A TIME - EACH dialog() PUSHES, SO THE PAUSES
     # ARE WHAT THE PLAYERS ACTUALLY SEE ON THE SCOREBOARD
     self.dlg_hand_complete()
