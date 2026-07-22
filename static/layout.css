@@ -251,25 +251,28 @@ body {
   font-weight: bold;
 }
 
-@media (max-width: 450px) {
+#played-cards {
+  /* overriding .pos-abs.middle-center */
+  transform: translateX(-50%) translateY(-80%) !important;
+}
+
+@media (max-width: 550px) {
   #p-next .p-cards,
   #p-previous .p-cards,
   #p-partner .p-cards {
     display: none;
   }
-  #p-next .info-divs {
-    transform: translateY(-180px);
-  }
-  #p-previous .info-divs {
-    transform: translateY(-180px);
-  }
-  #table-center {
-    transform: translateY(-75px);
-  }
   #played-cards {
     /* overriding .pos-abs.middle-center */
-    transform: translateX(-50%) translateY(-50%) scale(0.9) !important;
+    transform: translateX(-50%) translateY(-80%) scale(0.9) !important;
   }
+  #p-next .info-divs {
+    transform: translateY(-150px);
+  }
+  #p-previous .info-divs {
+    transform: translateY(-150px);
+  }
+
   #table-kitty {
     transform: rotate(30deg) scale(0.75);
   }
