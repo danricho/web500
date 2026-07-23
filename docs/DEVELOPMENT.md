@@ -24,7 +24,7 @@ applog.py              shared log-line printer used by main.py and game_state.py
                       whitelists on that exact bracket to separate this app's own output
                       from gunicorn/systemd/sudo noise in the raw journal, and re-renders
                       the same ANSI codes as CSS spans (`to_html()`) for its HTML view
-ntfy.py               optional push notification (self-hosted ntfy) when a human joins a
+ntfy.py               optional push notification (ntfy, self-hosted or public) when a human joins a
                       table; off by default, see "Notifications" below
 templates/game_client.j2.html    single-page client UI for one table (Jinja2)
 templates/choose_table.j2.html   table picker shown between login and the game client
@@ -296,14 +296,22 @@ as the room/directory name) and must never drift from a restore.
 
 ## Notifications (`ntfy.py`)
 
-Optional push notifications to a self-hosted [ntfy](https://ntfy.sh/) server — currently
-just "a human sat down at a table". **Disabled by default.** `ntfy.init(DATA_DIR)` (called
+Optional push notifications to an [ntfy](https://ntfy.sh/) server — currently just "a
+human sat down at a table". **Disabled by default.** `ntfy.init(DATA_DIR)` (called
 once at startup in `main.py`) creates `data/ntfy.json` if missing
 (`{"enabled": false, "server": ..., "topic": ..., "auth_token": null}`) — gitignored, like
 `auth.json`/`secret_key.txt`, so a fresh checkout never phones home; edit that file to
-point it at a real server/topic (`auth_token` is an optional bearer token for a
-self-hosted server that requires auth). No restart needed — `ntfy.send(title, message)`
-reloads the config from disk on every call.
+point it at a real server/topic (`auth_token` is an optional bearer token, for a
+self-hosted server that requires auth or a paid ntfy.sh plan). No restart needed —
+`ntfy.send(title, message)` reloads the config from disk on every call.
+
+`server` doesn't have to be self-hosted — the public `https://ntfy.sh` works the same
+way, since the code just POSTs to `{server}/{topic}` with no self-host-specific logic
+anywhere. The installer should understand the tradeoff before pointing at it: a free
+public ntfy.sh topic isn't an account, it's a guessable name — anyone who knows or
+guesses the topic string can read every notification sent to it (or publish their own).
+Mitigate with an unguessable topic name, or use a paid ntfy.sh plan with `auth_token`
+set.
 
 `send()` is fire-and-forget: it spawns a short-lived daemon thread with a 5s timeout, so a
 slow or unreachable ntfy server can never stall a game action (same reasoning as

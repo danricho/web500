@@ -111,8 +111,9 @@ manual checkpoint slot per table supports save/load during development.
 <details>
 <summary><strong>Push notifications (optional)</strong></summary>
 
-pings a self-hosted [ntfy](https://ntfy.sh/) server whenever a human takes a seat at a
-table. Off by default; see [Notifications](#notifications-optional) below to enable it.
+pings an [ntfy](https://ntfy.sh/) server (self-hosted or the public ntfy.sh) whenever a
+human takes a seat at a table. Off by default; see
+[Notifications](#notifications-optional) below to enable it.
 
 </details>
 
@@ -247,6 +248,12 @@ a table, set `enabled: true` and point `server`/`topic` at your ntfy instance
 (`auth_token` is only needed if that server requires one). No restart needed — it's
 re-read on every notification. Bot seatings (ADD BOTS, admin test mode) never notify.
 
+If you don't want to self-host, `server` can point at the public `https://ntfy.sh`
+instead — but know the risk first: a free public topic is just a guessable name, not an
+account, so anyone who knows (or guesses) your topic string can read every notification
+(and publish their own to it). Pick an unguessable topic name, or use a paid ntfy.sh plan
+with `auth_token` set, if you go this route.
+
 **6. Play.** Open `http://your-server:4030`, log in with a display name + the
 passcode, pick or create a table, and take a seat. The ADD BOTS button fills empty
 seats with bot players.
@@ -272,9 +279,10 @@ modal's admin section.
 
 ### Notifications (optional)
 
-A self-hosted [ntfy](https://ntfy.sh/) server can be pinged whenever a human takes a
-seat — handy if you're not watching the browser tab. Off by default; see step 5 of the
-installation instructions above to turn it on via `data/ntfy.json`.
+An [ntfy](https://ntfy.sh/) server (self-hosted or the public ntfy.sh) can be pinged
+whenever a human takes a seat — handy if you're not watching the browser tab. Off by
+default; see step 5 of the installation instructions above to turn it on via
+`data/ntfy.json`, including the risk of using a public topic instead of self-hosting.
 
 ## Architecture
 
