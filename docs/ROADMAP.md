@@ -158,7 +158,7 @@ carries the diagnostics and fix shapes.
 
    _Detail (medium, needs a design decision first):_ today "every client receives every
    player's hand — hiding opponents' cards is a client-side rendering concern, not a
-   server one" (see CLAUDE.md) is fine for players (each has a real reason to trust the
+   server one" is fine for players (each has a real reason to trust the
    others), but an observer with the raw payload could trivially inspect every hand in
    the browser console. That means `to_dict()`/`sio_push()` can no longer send one
    identical payload to the whole room — an observer's push must have every
@@ -225,7 +225,7 @@ carries the diagnostics and fix shapes.
 
 1. **WebSocket transport** — `main.py:162` hard-forces `transports=['polling']`, almost
    certainly a leftover from the old Google App Engine hosting (autoscaled sandboxes
-   don't hold long-lived WS connections well). Now self-hosted behind a cloudflared
+   don't hold long-lived WS connections well). Now self-hosted behind a reverse-proxy
    tunnel, which proxies WebSockets fine, so the original constraint is gone. Payoff is
    cosmetic (fewer reconnect blips, the client already has debounce/grace-period code
    built specifically to paper over polling's constant drop/reconnect churn — see
@@ -243,7 +243,7 @@ carries the diagnostics and fix shapes.
    then drop `transports=['polling']` in `main.py`. Risk: `-k eventlet` monkey-patches
    stdlib `socket`/`threading` process-wide, which is a new failure class for the
    things this app depends on today — `threaded_schedule.py`'s single serialising
-   worker thread+queue (explicitly load-bearing per CLAUDE.md), the `sudo -n
+   worker thread+queue (explicitly load-bearing by design), the `sudo -n
    journalctl` subprocess in `/dev/logs`, and the detached `subprocess.Popen` restart
    thread in `/admin/restart`. Wants a full manual pass (test_mode + bot flow +
    `/admin/restart`) before trusting it in prod, not just a restart-and-watch. Would
@@ -263,7 +263,7 @@ carries the diagnostics and fix shapes.
    either without one:**
 
    _Option A — per-table queue/worker (medium-hard, touches the core serialisation
-   model):_ today's design (CLAUDE.md: "ONE shared worker/queue serialises mutations
+   model):_ today's design ("ONE shared worker/queue serialises mutations
    across EVERY table, deliberately not split per-table") assumed table count would stay
    low. Give each `GameStateMachine` its own `ThreadedSchedule(workers=1)` (or a lighter
    bespoke queue+thread pair) at `create_table()`/`load_tables_from_disk()` time instead
@@ -293,14 +293,14 @@ carries the diagnostics and fix shapes.
    state — it only re-enqueues — so the single-writer invariant (only the worker thread
    ever mutates a `GameStateMachine`) survives untouched, no concurrency audit needed.
    Cheapest cut: apply only to bot think-time (`bots.py:820`, the dominant contributor —
-   up to 12s vs. the 1-3s general pacing literals CLAUDE.md already says aren't worth
+   up to 12s vs. the 1-3s general pacing literals that aren't worth
    touching), leaving `countdown()`/`auto_deal`/`auto_points`/`state_trans`'s other
    `delay()` calls as-is. Cost: turns those call sites' straight-line code into
    do-this/schedule-that continuations (fiddliest for `countdown()`'s per-second loop),
    and introduces a re-entrancy hazard the current design doesn't have — while a
    continuation is pending, the worker is free to run *other* queued jobs for that same
    table in between (e.g. a re-fired `bot_check` from another push), so needs an
-   in-flight guard flag extending the idempotency pattern CLAUDE.md already documents for
+   in-flight guard flag extending the idempotency pattern already used elsewhere for
    bots.
 
    _Audit needed before picking:_ Option A's risk is real newly-introduced concurrency
