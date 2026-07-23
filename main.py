@@ -36,6 +36,36 @@ app = Flask(__name__)
 
 app.jinja_env.auto_reload = True
 
+# PRINTED ONE LINE AT A TIME THROUGH applog.scoped() (NOT ONE MULTI-LINE print()) SO EVERY
+# LINE CARRIES ITS OWN "[ts] MAIN :::: " PREFIX - journald SPLITS A SINGLE MULTI-LINE WRITE
+# INTO SEPARATE ENTRIES ANYWAY, AND ONLY THE PREFIXED FORM SURVIVES /dev/logs' BRACKET
+# WHITELIST (SEE applog.py). MAKES A RESTART UNMISTAKABLE WHEN SCROLLING THE RAW JOURNAL.
+STARTUP_BANNER = r"""
+========================================================
+ ♠♥♣♦  WEB 500 - AUSTRALIAN FIVE HUNDRED  ♦♣♥♠
+ 
+ /$$      /$$           /$$      
+| $$  /$ | $$          | $$      
+| $$ /$$$| $$  /$$$$$$ | $$$$$$$ 
+| $$/$$ $$ $$ /$$__  $$| $$__  $$
+| $$$$_  $$$$| $$$$$$$$| $$  \ $$
+| $$$/ \  $$$| $$_____/| $$  | $$
+| $$/   \  $$|  $$$$$$$| $$$$$$$/
+|__/     \__/ \_______/|_______/ 
+                                 
+ /$$$$$$$   /$$$$$$   /$$$$$$    
+| $$____/  /$$$_  $$ /$$$_  $$   
+| $$      | $$$$\ $$| $$$$\ $$   
+| $$$$$$$ | $$ $$ $$| $$ $$ $$   
+|_____  $$| $$\ $$$$| $$\ $$$$   
+ /$$  \ $$| $$ \ $$$| $$ \ $$$   
+|  $$$$$$/|  $$$$$$/|  $$$$$$/   
+ \______/  \______/  \______/    
+
+========================================================
+""".strip("\n")
+for line in STARTUP_BANNER.split("\n"):
+  applog.scoped("MAIN", line, color=applog.RED)
 applog.scoped("MAIN", f"STARTING {VERSION}", color=applog.RED)
 applog.scoped("MAIN", f"http://{socket.gethostname()}:{PORT}", color=applog.RED)
 
