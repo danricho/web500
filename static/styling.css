@@ -1093,6 +1093,8 @@ select:focus {
 #toast-stack {
   pointer-events: none; /* never block clicks on what's underneath */
   max-width: 22rem;
+  top: 4rem;
+  right: 0;
 }
 .toast {
   margin: 0.4rem 0;
@@ -1103,7 +1105,7 @@ select:focus {
   border-left: 4px solid var(--primary-color-lighter);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   text-align: left;
-  opacity: 0.95;
+  opacity: 0.5;
   transition: opacity 0.7s ease;
 }
 .toast-hide {

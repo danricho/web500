@@ -1423,8 +1423,10 @@
       </div>
 
       <!-- SERVER-SENT TOAST STACK (toast socket event; styles in styling.css).
-           SITS ABOVE EVERY MODAL AND IGNORES THE MOUSE -->
-      <div id="toast-stack" class="pos-abs top-right m-2 text-center"></div>
+           SITS ABOVE EVERY MODAL AND IGNORES THE MOUSE. POSITION (right:0, top:4rem) IS
+           SET DIRECTLY ON #toast-stack RATHER THAN VIA THE .top-right UTILITY - SEE THE
+           COMMENT THERE (top:4rem CLEARS THE #trump-indicator BUTTON IN THE SAME CORNER). -->
+      <div id="toast-stack" class="pos-abs m-2 text-center"></div>
 
       <!-- BLANK LOCATION DIVS -->
       <!-- <div class="pos-abs top-left m-1 p-1 px-2">NW</div>
