@@ -223,6 +223,92 @@ carries the diagnostics and fix shapes.
    fifth, exposed hand that stays usable on phone screens (portrait or landscape).
    Needs a design idea before any code.
 
+1. **WebSocket transport** — `main.py:162` hard-forces `transports=['polling']`, almost
+   certainly a leftover from the old Google App Engine hosting (autoscaled sandboxes
+   don't hold long-lived WS connections well). Now self-hosted behind a cloudflared
+   tunnel, which proxies WebSockets fine, so the original constraint is gone. Payoff is
+   cosmetic (fewer reconnect blips, the client already has debounce/grace-period code
+   built specifically to paper over polling's constant drop/reconnect churn — see
+   `game_client.js` around the `socket.on("disconnect", ...)` handler) — no player-value
+   urgency, hence low on this list.
+
+   _Detail (medium, real risk is the worker model, not the socketio flag):_ removing
+   `transports=['polling']` alone does nothing useful — the app runs plain sync
+   gunicorn (`-w 1 --threads 100`, no eventlet/gevent in `requirements.txt`), and a sync
+   worker cannot hold a WebSocket connection open (one thread per request, no event
+   loop), so socket.io-client would just fall back to polling anyway. A real switch
+   needs three coordinated changes: add `eventlet` (or `gevent` + `gevent-websocket`) to
+   `requirements.txt`; add `-k eventlet` to the gunicorn invocation in both
+   `gunicorn_start.sh` and `service_config/web-500-web-server.service`'s `ExecStart`;
+   then drop `transports=['polling']` in `main.py`. Risk: `-k eventlet` monkey-patches
+   stdlib `socket`/`threading` process-wide, which is a new failure class for the
+   things this app depends on today — `threaded_schedule.py`'s single serialising
+   worker thread+queue (explicitly load-bearing per CLAUDE.md), the `sudo -n
+   journalctl` subprocess in `/dev/logs`, and the detached `subprocess.Popen` restart
+   thread in `/admin/restart`. Wants a full manual pass (test_mode + bot flow +
+   `/admin/restart`) before trusting it in prod, not just a restart-and-watch. Would
+   also remove the blocker for the **player presence** item below.
+
+1. **Per-table job queue/worker (or: defer pacing instead of blocking it)** — one
+   `ThreadedSchedule` worker (`schedule_t`, `game_state.py:22`) serialises mutations for
+   every table in the process, and bot think-time is a real blocking `time.sleep()`
+   inside a queued job (`game.delay()`, `game_state.py:456`, fired from `bots.py:820`).
+   One table's bots thinking (up to 12s each, stacked over a whole hand) blocks the only
+   thread that runs `state_trans` for *every other table* — a human's bid/play on table
+   B can stall behind table A's bots. Fine today at low concurrent-table counts, becomes
+   a real player-facing lag source once several bot-heavy tables run at once. Not urgent
+   until table count grows, but flagging now since it's an architecture change, not a
+   tweak — cheaper to plan for early than retrofit later. **Two candidate fix shapes,
+   undecided until a concurrency/data-safety audit is done (see below) — do not start
+   either without one:**
+
+   _Option A — per-table queue/worker (medium-hard, touches the core serialisation
+   model):_ today's design (CLAUDE.md: "ONE shared worker/queue serialises mutations
+   across EVERY table, deliberately not split per-table") assumed table count would stay
+   low. Give each `GameStateMachine` its own `ThreadedSchedule(workers=1)` (or a lighter
+   bespoke queue+thread pair) at `create_table()`/`load_tables_from_disk()` time instead
+   of sharing the module-level `schedule_t` — every current call site that does
+   `schedule_t.jobqueue.put(self.state_trans)` etc. becomes `self.jobqueue.put(...)`.
+   Ordering guarantees needed are only ever *within* one table (nothing currently depends
+   on cross-table job ordering — tables are already logically independent), so this is
+   safe to split. Loose ends: `poll_all_tables()` currently fans
+   `is_push_needed`/`check_focus_idle` for every table onto the one shared queue — with
+   per-table queues it instead puts onto each table's own; `delete_table()`/
+   `reap_empty_tables()` must `.stop()` the departing table's worker thread (no thread
+   leak on reap); the shared `on_error` hook (unscoped danger toast) stays process-wide,
+   just re-wired per-instance. Net effect: a bot-heavy table can no longer stall any
+   other table, at the cost of N worker threads instead of 1 (fine — Python threads are
+   cheap, gunicorn already runs `--threads 100`). Real cost: this turns "exactly one
+   thread ever mutates game state" into "N threads each mutate their own table" — every
+   accidentally-shared module-level structure (the `games` list appended on game-over,
+   the `tables` registry dict itself during create/reap, shared log output) goes from
+   serial-by-accident to genuinely concurrent and needs auditing, not assuming safe.
+
+   _Option B — defer pacing instead of blocking the worker (smaller diff, keeps the
+   single shared queue):_ root cause is narrower than "one shared queue" — it's
+   `self.delay()` blocking *inside* the job. Replace the blocking `sleep()` with a
+   non-blocking reschedule: do the work up to the delay point, then
+   `threading.Timer(seconds, lambda: schedule_t.jobqueue.put(continuation)).start()` and
+   return, instead of sleeping and continuing inline. The timer thread touches no game
+   state — it only re-enqueues — so the single-writer invariant (only the worker thread
+   ever mutates a `GameStateMachine`) survives untouched, no concurrency audit needed.
+   Cheapest cut: apply only to bot think-time (`bots.py:820`, the dominant contributor —
+   up to 12s vs. the 1-3s general pacing literals CLAUDE.md already says aren't worth
+   touching), leaving `countdown()`/`auto_deal`/`auto_points`/`state_trans`'s other
+   `delay()` calls as-is. Cost: turns those call sites' straight-line code into
+   do-this/schedule-that continuations (fiddliest for `countdown()`'s per-second loop),
+   and introduces a re-entrancy hazard the current design doesn't have — while a
+   continuation is pending, the worker is free to run *other* queued jobs for that same
+   table in between (e.g. a re-fired `bot_check` from another push), so needs an
+   in-flight guard flag extending the idempotency pattern CLAUDE.md already documents for
+   bots.
+
+   _Audit needed before picking:_ Option A's risk is real newly-introduced concurrency
+   across shared module-level state; Option B's risk is subtler re-entrancy bugs within
+   a table's own pending continuation. Whichever surfaces as cheaper/safer to guard
+   against in a proper audit of what's actually shared/mutated wins — don't commit to
+   either shape until that's done.
+
 1. **Player presence / disconnect notices (maybe, one day)** — toast "X lost
    connection" / "X is back online" and a per-seat indicator. Built once and
    deliberately reverted (2026-07-19): under the polling transport, disconnect
@@ -233,6 +319,6 @@ carries the diagnostics and fix shapes.
    (multi-device players never false-alarm), only the last client dropping starts a
    ~30s debounce, only seated humans announced, "back online" only after an announced
    loss, per-player `disconnected` flag riding the state push for a chip icon.
-   Revisit only if the transport story changes (e.g. websockets) or players actually
-   ask for it.
+   Revisit only if the transport story changes (see **WebSocket transport** above) or
+   players actually ask for it.
 
