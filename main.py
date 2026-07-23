@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, redirect, session
 from flask_socketio import SocketIO, join_room, rooms
-import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceback
+import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceback, re
 
 # TO RUN VIA GUNICORN - EXACTLY ONE WORKER, THE GAME LIVES IN THIS PROCESS'S MEMORY:
 # venv/bin/gunicorn -b :4030 -w 1 --threads 100 main:app
@@ -288,13 +288,26 @@ def index(path):
         ["sudo", "-n", "journalctl", "-u", SERVICE_UNIT_NAME, "--no-pager", "-n", n],
         capture_output=True, text=True, timeout=10)
       log_text = result.stdout if result.returncode == 0 else (result.stdout + result.stderr)
-      # DROP sudo's OWN AUDIT LINES ("... : TTY=... ; PWD=... ; USER=root ; COMMAND=..."
-      # AND "pam_unix(sudo:session): ..."). THESE ARE SELF-INFLICTED NOISE - EVERY sudo
-      # CALL (INCLUDING THIS VERY journalctl FETCH, AND /admin/restart's systemctl) LOGS
-      # ONE, TAGGED UNDER THIS UNIT SINCE IT'S INVOKED FROM THE SERVICE'S OWN CGROUP.
-      # FILTERED AFTER -n, SO THE VISIBLE LINE COUNT CAN BE A LITTLE BELOW ?n=.
-      NOISE = ("root : PWD", "pam_unix(sudo")
-      log_text = "\n".join(l for l in log_text.splitlines() if not any(s in l for s in NOISE))
+      # WHITELIST, NOT BLACKLIST: KEEP ONLY LINES THAT CARRY OUR OWN log()/debug()/
+      # dialog()/state_trans() TIMESTAMP TAG ("[YYYY-MM-DD HH:MM:SS]" WITH NO TIMEZONE -
+      # THAT'S WHAT DISTINGUISHES IT FROM GUNICORN'S OWN "[... +1000]" BOOT-LINE FORMAT),
+      # I.E. SOMETHING THIS REPO ACTUALLY PRINTED. THIS DROPS ALL OF: sudo'S PAM/AUDIT
+      # LINES, systemd's START/STOP/KILL CHATTER, AND GUNICORN'S OWN [INFO] BOOT LINES -
+      # NONE OF WHICH HAVE A print() CALL BACKING THEM IN THIS REPO - IN ONE RULE, NO
+      # PER-PATTERN BLACKLIST TO MAINTAIN. ALSO STRIPS journalctl'S OWN
+      # "Mon DD HH:MM:SS host process[pid]: " PREFIX SO EACH LINE STARTS AT OUR BRACKET.
+      # (NOTE: A HANDFUL OF REPO print()s DON'T USE THIS BRACKET FORMAT - THE ONE-TIME
+      # save_state MIGRATION LINE, THE RARELY-ENABLED FLASK p_debug/p_event/... REQUEST
+      # LOG, AND threaded_schedule's WORKER JOB FAILED TRACEBACK - THOSE ARE FILTERED OUT
+      # TOO. WORKER JOB FAILURES STILL REACH PLAYERS VIA THE on_error DANGER TOAST; A
+      # RAW `sudo journalctl` STILL SHOWS EVERYTHING FOR DEEPER DEBUGGING.)
+      TIMESTAMP_RE = re.compile(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]")
+      kept = []
+      for line in log_text.splitlines():
+        m = TIMESTAMP_RE.search(line)
+        if m:
+          kept.append(line[m.start():])
+      log_text = "\n".join(kept)
     except Exception as e:
       log_text = f"FAILED TO READ JOURNAL: {e}"
     return render_template('dev_logs.j2.html', log_text=log_text, lines=n)
