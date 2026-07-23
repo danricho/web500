@@ -16,6 +16,7 @@
 from random import choice, sample, gauss, getrandbits, uniform
 from math import exp
 from playing_cards import SUIT_STR
+import applog
 
 # SHARED BY BOTH BOT KINDS. SEATED NAMES CARRY A KIND PREFIX - THE PREFIX ALONE TELLS
 # THE TWO KINDS APART (AND ROUTES THE bot_check DISPATCHER):
@@ -763,7 +764,7 @@ def seat_player_bots(game):
       else: # LOG THE SAMPLED TUNING SO A GAME'S BOT BEHAVIOUR CAN BE READ BACK LATER
         personality = game.player_bots[seat]["personality"]
         knobs = " ".join(f"{k}={personality[k]}" for k in PERSONALITY_CONFIG)
-        game.log(f"{name} seated with tuning: {knobs} seed={personality['seed']}")
+        game.log(f"{name} seated with tuning: {knobs} seed={personality['seed']}", color=applog.CYAN, tag="BOT")
   # PERSIST THE NEW SEATING EVEN IF THE TABLE DIDN'T FILL (A PARTIAL LOBBY OTHERWISE
   # ONLY AUTOSAVES ONCE THE S0->S1 TRANSITION FIRES) - A RESTART THEN KEEPS THE BOTS
   game.autosave()
@@ -831,8 +832,9 @@ def player_bot_check(game):
       # VS ACTUAL BID, SEPARATE FROM THE PLAYER-FACING dlg_bid_* DIALOGS
       if not decision["pass"] and bot.last_estimates:
         est = bot.last_estimates.get(decision["suit"])
-        game.log(f"[BID_ESTIMATE] {bot.name} bid {decision['tricks']} {SUIT_STR[decision['suit']]} "
-                 f"(estimate={est:.2f} confidence={bot.personality['confidence']:.3f})")
+        game.log(f"{bot.name} bid {decision['tricks']} {SUIT_STR[decision['suit']]} "
+                 f"(estimate={est:.2f} confidence={bot.personality['confidence']:.3f})",
+                 color=applog.CYAN, tag="BOT")
       game.gui_bid(bot.name, decision)
 
   elif view["state"] == "AWARD KITTY":

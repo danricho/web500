@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, redirect, session
 from flask_socketio import SocketIO, join_room, rooms
 import os, sys, socket, json, hmac, secrets, subprocess, threading, time, traceback, re
+import applog
 
 # TO RUN VIA GUNICORN - EXACTLY ONE WORKER, THE GAME LIVES IN THIS PROCESS'S MEMORY:
 # venv/bin/gunicorn -b :4030 -w 1 --threads 100 main:app
@@ -35,11 +36,8 @@ app = Flask(__name__)
 
 app.jinja_env.auto_reload = True
 
-def log(message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] MAIN APP/SERVER :::::::: \033[31m{message}\033[0m")
-
-log(f"STARTING SERVICE ({VERSION}) AT http://{socket.gethostname()}:{PORT}")
+applog.scoped("MAIN", f"STARTING {VERSION}", color=applog.RED)
+applog.scoped("MAIN", f"http://{socket.gethostname()}:{PORT}", color=applog.RED)
 
 from game_state import *
 import bots
@@ -61,7 +59,7 @@ def load_or_create_auth():
     config = {"passcode": secrets.token_urlsafe(8), "admin_users": DEFAULT_ADMIN_USERS}
     with open(AUTH_FILE, "w") as f:
       json.dump(config, f, indent=2)
-    log(f"CREATED {AUTH_FILE} WITH A RANDOM PASSCODE - EDIT IT TO SET YOUR OWN")
+    applog.scoped("MAIN", f"CREATED {AUTH_FILE} WITH A RANDOM PASSCODE - EDIT IT TO SET YOUR OWN", color=applog.RED)
   with open(AUTH_FILE) as f:
     return json.load(f)
 
@@ -70,7 +68,7 @@ def load_or_create_secret_key():
   if not os.path.exists(SECRET_KEY_FILE):
     with open(SECRET_KEY_FILE, "w") as f:
       f.write(secrets.token_hex(32))
-    log(f"CREATED {SECRET_KEY_FILE} (SESSION SIGNING KEY)")
+    applog.scoped("MAIN", f"CREATED {SECRET_KEY_FILE} (SESSION SIGNING KEY)", color=applog.RED)
   with open(SECRET_KEY_FILE) as f:
     return f.read().strip()
 
@@ -159,37 +157,19 @@ schedule.every(1).seconds.do(schedule_t.jobqueue.put, poll_all_tables)
 def index(path):
   global players, test_driver_enabled
 
-  # REQUEST-LOG VERBOSITY DIAL. EACH p_* HELPER PRINTS ONLY IF ITS LEVEL IS AT OR
-  # BELOW log_level. AT THE "warning" DEFAULT NOTHING BELOW PRINTS - RAISE IT TO
-  # "debug" OR "info" TO SEE REQUESTS GO BY WHILE DEBUGGING.
-  log_level = "warning"
-
-  def p_debug(*args):
-    if log_level in ['debug']:
-      print( f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} \33[Flask\33[39m:\33[36m", *args, f"\33[39m", sep=" ")
-  def p_event(*args):
-    if log_level in ['debug', 'info']:
-      print( f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} \33[97mFlask\33[39m:\33[94m", *args, f"\33[39m", sep=" ")
-  def p_warning(*args):
-    if log_level in ['debug', 'info', 'warning']:
-      print( f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} \33[97mFlask\33[39m:\33[33m", *args, f"\33[39m", sep=" ")
-  def p_error(*args):
-    if log_level in ['debug', 'info', 'warning', 'error']:
-      print( f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} \33[97mFlask\33[39m:\33[31m", *args, f"\33[39m", sep=" ")
-
   # KEEP SEARCH ENGINES / POLITE CRAWLERS AWAY - SITE IS PRIVATE
   if path == "robots.txt":
     return app.response_class("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
   if path == '':
     if not current_user():
-      p_event("HMTL Request: Login")
+      applog.scoped("FLASK", "HTML Request: Login", color=applog.BLUE)
       return render_template('login.j2.html')
     target = current_table()
     if target is None:
-      p_event("HMTL Request: Choose Table")
+      applog.scoped("FLASK", "HTML Request: Choose Table", color=applog.BLUE)
       return render_template('choose_table.j2.html', tables=_table_summaries())
-    p_event("HMTL Request: Game (Client)")
+    applog.scoped("FLASK", "HTML Request: Game Client", color=applog.BLUE)
     # table_id IS BAKED INTO THE PAGE (SEE game_client.j2.html) AND SENT ON THE
     # io() CALL'S QUERY STRING - THE connect HANDLER READS IT FROM THERE, NOT FROM
     # THE LIVE SESSION, SO ORDINARY POLLING-TRANSPORT RECONNECTS (WHICH HAPPEN
@@ -232,13 +212,13 @@ def index(path):
         session['username'] = player.name
         break
     session['table_id'] = target.name
-    log(f"'{current_user()}' selected table '{target.name}'")
+    applog.scoped("MAIN", f"{current_user()} selected table '{target.name}'", color=applog.RED)
     return redirect("/")
 
   if path == "api/create_table": # CREATE + SELECT A FRESH TABLE (CHOOSE-TABLE PAGE)
     target = create_table(socketio)
     session['table_id'] = target.name
-    log(f"'{current_user()}' created table '{target.name}'")
+    applog.scoped("MAIN", f"{current_user()} created table '{target.name}'", color=applog.RED)
     return redirect("/")
 
   if path == "api/change_table": # BACK TO THE TABLE PICKER - EVEN IF ALREADY SEATED
@@ -255,7 +235,7 @@ def index(path):
       target.sio_push()
       target.autosave()
     session.pop('table_id', None)
-    log(f"'{current_user()}' returned to table selection")
+    applog.scoped("MAIN", f"{current_user()} returned to table selection", color=applog.RED)
     return redirect("/")
 
   if path == "api/client_trigger_push":
@@ -267,7 +247,7 @@ def index(path):
     target = current_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to reinitialise table '{target.name}' (by '{current_user()}')")
+    applog.scoped("FLASK", f"Request to reinitialise table '{target.name}' (by {current_user()})", color=applog.RED)
     if target.state_name() != "DEALING":
       target.__init__(target.name, socketio_init=socketio) # KEEPS THE TABLE'S OWN NAME
       target.clear_autosave() # init means a true fresh start - forget the persisted game
@@ -276,16 +256,25 @@ def index(path):
     return "ok"
 
   if path == "dev/cards": # VISUAL REVIEW OF THE CARD BACK + ALL 43 FACES (SHARED PROTO CARD)
+    applog.scoped("FLASK", "HTML Request: Card Review (dev)", color=applog.BLUE)
     return render_template('cards_review.j2.html')
 
   if path == "dev/logs": # RAW SERVICE LOG VIEWER - READS VIA THE SAME PASSWORDLESS
     # sudo journalctl RESTART_COMMAND ALREADY RELIES ON, SO NO EXTRA HOST SETUP NEEDED.
     # ?n= CONTROLS HOW MANY TRAILING LINES (DEFAULTS TO 1000; NON-DIGIT/MISSING FALLS BACK).
+    applog.scoped("FLASK", "HTML Request: Server Logs (dev)", color=applog.BLUE)
     n = request.args.get("n", "1000")
     n = n if n.isdigit() else "1000"
     try:
+      # --output cat: JUST THE RAW MESSAGE FIELD, NO journalctl-ADDED PREFIX. NEEDED FOR
+      # TWO REASONS: (1) journalctl'S DEFAULT FORMATTER SANITISES/STRIPS CONTROL
+      # CHARACTERS - INCLUDING OUR OWN "\033[...m" ANSI CODES - WHENEVER ITS OUTPUT ISN'T
+      # A TTY (EXACTLY WHAT subprocess.run CAPTURES INTO), SO applog.to_html() BELOW HAD
+      # NOTHING TO CONVERT AND EVERY LINE CAME OUT UNCOLORED; (2) IT ALSO MEANS WE NO
+      # LONGER NEED TO STRIP journalctl'S OWN "Mon DD HH:MM:SS host process[pid]: " PREFIX
+      # OURSELVES - cat MODE NEVER ADDS IT IN THE FIRST PLACE.
       result = subprocess.run(
-        ["sudo", "-n", "journalctl", "-u", SERVICE_UNIT_NAME, "--no-pager", "-n", n],
+        ["sudo", "-n", "journalctl", "-u", SERVICE_UNIT_NAME, "--no-pager", "--output", "cat", "-n", n],
         capture_output=True, text=True, timeout=10)
       log_text = result.stdout if result.returncode == 0 else (result.stdout + result.stderr)
       # WHITELIST, NOT BLACKLIST: KEEP ONLY LINES THAT CARRY OUR OWN log()/debug()/
@@ -296,27 +285,29 @@ def index(path):
       # NONE OF WHICH HAVE A print() CALL BACKING THEM IN THIS REPO - IN ONE RULE, NO
       # PER-PATTERN BLACKLIST TO MAINTAIN. ALSO STRIPS journalctl'S OWN
       # "Mon DD HH:MM:SS host process[pid]: " PREFIX SO EACH LINE STARTS AT OUR BRACKET.
-      # (NOTE: A HANDFUL OF REPO print()s DON'T USE THIS BRACKET FORMAT - THE ONE-TIME
-      # save_state MIGRATION LINE, THE RARELY-ENABLED FLASK p_debug/p_event/... REQUEST
-      # LOG, AND threaded_schedule's WORKER JOB FAILED TRACEBACK - THOSE ARE FILTERED OUT
-      # TOO. WORKER JOB FAILURES STILL REACH PLAYERS VIA THE on_error DANGER TOAST; A
-      # RAW `sudo journalctl` STILL SHOWS EVERYTHING FOR DEEPER DEBUGGING.)
+      # (NOTE: A COUPLE OF REPO print()s STILL DON'T USE THIS BRACKET FORMAT - THE
+      # ONE-TIME save_state MIGRATION LINE AND threaded_schedule's WORKER JOB FAILED
+      # TRACEBACK - THOSE ARE FILTERED OUT TOO. WORKER JOB FAILURES STILL REACH PLAYERS
+      # VIA THE on_error DANGER TOAST; A RAW `sudo journalctl` STILL SHOWS EVERYTHING.)
       TIMESTAMP_RE = re.compile(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]")
       kept = []
       for line in log_text.splitlines():
         m = TIMESTAMP_RE.search(line)
         if m:
-          kept.append(line[m.start():])
+          # applog.to_html() TURNS THE LINE'S EMBEDDED "\033[...m" CODES INTO EQUIVALENT
+          # <span style=...> HTML (SAME PALETTE AS THE TERMINAL) AND HTML-ESCAPES THE
+          # REST - THE TEMPLATE RENDERS IT WITH |safe SINCE IT'S ALREADY-ESCAPED HTML
+          kept.append(applog.to_html(line[m.start():]))
       log_text = "\n".join(kept)
     except Exception as e:
-      log_text = f"FAILED TO READ JOURNAL: {e}"
+      log_text = applog.to_html(f"FAILED TO READ JOURNAL: {e}") # escaped - no ANSI to convert, just plain text through the same safe path
     return render_template('dev_logs.j2.html', log_text=log_text, lines=n)
 
   if path == "admin/reinit": # ADMIN-ONLY: REINIT ANY TABLE VIA #admin-table-select
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to reinitialise table '{target.name}' (ADMIN FEATURE, by '{current_user()}')")
+    applog.scoped("FLASK", f"Request to reinitialise table '{target.name}' (by {current_user()})", color=applog.RED)
     if target.state_name() != "DEALING":
       target.__init__(target.name, socketio_init=socketio) # KEEPS THE TABLE'S OWN NAME
       target.clear_autosave()
@@ -329,7 +320,7 @@ def index(path):
     if target is None:
       return "no table selected", 400
     name = target.name
-    log(f"Flask Request to DELETE table '{name}' (ADMIN FEATURE, by '{current_user()}')")
+    applog.scoped("FLASK", f"Request to DELETE table '{name}' (by {current_user()})", color=applog.RED)
     delete_table(name, f"deleted by {current_user()}")
     return "ok"
 
@@ -337,7 +328,7 @@ def index(path):
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to save admin checkpoint (ADMIN FEATURE)")
+    applog.scoped("FLASK", f"Request to save admin checkpoint (by {current_user()})", color=applog.RED)
     target.save_state(target.checkpoint_path, reason="(admin checkpoint)")
     target.sio_toast(f"Checkpoint saved by {current_user()}", kind="success", category="GAME MANAGEMENT")
     return "ok"
@@ -346,7 +337,7 @@ def index(path):
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to load admin checkpoint (ADMIN FEATURE)")
+    applog.scoped("FLASK", f"Request to load admin checkpoint (by {current_user()})", color=applog.RED)
     user = current_user() # CAPTURED NOW - THE WORKER THREAD HAS NO REQUEST CONTEXT
     def load_and_toast():
       if target.restore_state(target.checkpoint_path):
@@ -360,7 +351,7 @@ def index(path):
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to clear admin checkpoint (ADMIN FEATURE)")
+    applog.scoped("FLASK", f"Request to clear admin checkpoint (by {current_user()})", color=applog.RED)
     if os.path.exists(target.checkpoint_path):
       os.remove(target.checkpoint_path)
       target.sio_toast(f"Checkpoint cleared by {current_user()}", category="GAME MANAGEMENT")
@@ -372,7 +363,7 @@ def index(path):
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to toggle test mode automation (ADMIN FEATURE)")
+    applog.scoped("FLASK", f"Request to toggle test mode automation (by {current_user()})", color=applog.RED)
     target.test_mode = not target.test_mode
     if target.test_mode:
       schedule_t.jobqueue.put(lambda: bots.dev_random_seat_bots(target))
@@ -384,7 +375,7 @@ def index(path):
     target = admin_target_table()
     if target is None:
       return "no table selected", 400
-    log(f"Flask Request to toggle skip delays (ADMIN FEATURE)")
+    applog.scoped("FLASK", f"Request to toggle skip delays (by {current_user()})", color=applog.RED)
     target.skip_delays = not target.skip_delays
     target.sio_push()
     target.sio_toast(f"Skip delays {'enabled' if target.skip_delays else 'disabled'} by {current_user()}",
@@ -399,7 +390,7 @@ def index(path):
   if path == "admin/restart":
     if not RESTART_COMMAND:
       return "restart command not configured", 501
-    log(f"Flask Request to RESTART THE SERVICE (by '{current_user()}'): {RESTART_COMMAND}")
+    applog.scoped("FLASK", f"Request to RESTART THE SERVICE (by {current_user()})", color=applog.RED)
     # TOAST FIRST FOR THE BEST CHANCE OF REACHING THE OPEN LONG-POLLS BEFORE THE
     # PROCESS DIES (RESTART_DELAY_S LATER). RESTART AFFECTS EVERY TABLE, SO THIS IS A
     # TRUE UNSCOPED BROADCAST, NOT ROOM-SCOPED TO ANY ONE TABLE
@@ -412,7 +403,7 @@ def index(path):
       try:
         subprocess.Popen(RESTART_COMMAND, shell=True, start_new_session=True) # DETACHED: SURVIVES OUR OWN DEATH
       except Exception as e:
-        log(f"RESTART COMMAND FAILED TO LAUNCH: {e}")
+        applog.scoped("MAIN", "RESTART COMMAND FAILED TO LAUNCH: {e}", color=applog.RED)
     threading.Thread(target=do_restart, daemon=True).start() # NOT THE GAME WORKER QUEUE - MUST NOT BLOCK GAME JOBS
     return "ok"
     
@@ -429,19 +420,19 @@ def login():
   if not name:
     return render_template('login.j2.html', error="Please enter a name.")
   if not hmac.compare_digest(passcode, str(AUTH.get("passcode", ""))):
-    log(f"FAILED LOGIN ATTEMPT for name '{name}'")
+    applog.scoped("MAIN", f"FAILED LOGIN ATTEMPT for name '{name}'", color=applog.RED)
     return render_template('login.j2.html', error="Wrong passcode.")
   # NAME-CASING ADOPTION (IF THIS NAME IS ALREADY SEATED SOMEWHERE, ADOPT ITS EXACT
   # SPELLING) HAPPENS AT TABLE-SELECTION TIME NOW, NOT HERE - LOGIN HAS NO TABLE YET
   # TO CHECK AGAINST (SEE /api/select_table)
   session.permanent = True
   session['username'] = name
-  log(f"LOGIN: '{name}'")
+  applog.scoped("MAIN", f"LOGIN: '{name}'", color=applog.RED)
   return redirect("/")
 
 @app.route('/logout')
 def logout():
-  log(f"LOGOUT: '{current_user()}'")
+  applog.scoped("MAIN", f"LOGOUT: {current_user()}", color=applog.RED)
   session.clear()
   return redirect("/")
 
@@ -479,7 +470,7 @@ def inject_data():
 @socketio.on_error_default
 def handle_socket_error(e):
   event = request.event["message"] if hasattr(request, "event") else "?"
-  log(f"SOCKET HANDLER FAILED: '{event}'\n{traceback.format_exc()}")
+  applog.scoped("MAIN", f"SOCKET HANDLER FAILED: '{event}'\n{traceback.format_exc()}", color=applog.RED)
   socketio.emit('toast', data={"text": f"'{event}' failed - check the service logs",
                                 "kind": "danger", "seconds": 8, "audience": None,
                                 "category": "SERVER ERROR"})
@@ -581,7 +572,7 @@ def handle_add_bots(data):
   # THE CLIENT HIDES THE BUTTON UNTIL SEATED TOO - THIS IS THE AUTHORITATIVE CHECK
   if not any(same_name(current_user(), p.name) for p in target.players):
     return
-  log(f"'{current_user()}' requested bots to fill the empty seats at '{target.name}'")
+  applog.scoped("MAIN", f"{current_user()} requested bots to fill the empty seats at '{target.name}'", color=applog.RED)
   target.sio_toast(f"{current_user()} is filling the empty seats with bots...", category="PLAYERS")
   # ON THE WORKER QUEUE (NOT INLINE) BECAUSE SEATING PACES ITSELF WITH game.delay() AND
   # EACH gui_sit MAY TRIGGER state_trans - SAME SERIALISATION RULE AS ALL GAME MUTATIONS.

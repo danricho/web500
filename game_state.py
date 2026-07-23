@@ -11,7 +11,7 @@ from dotdict import dotdict as dd
 
 import threaded_schedule
 from threaded_schedule import schedule as schedule
-import inspect
+import applog
 
 import bots # BOT PLAYERS (INCL. THE ADMIN TEST-MODE BOT) LIVE OUTSIDE THE GAME RULES
 
@@ -263,8 +263,8 @@ class GameStateMachine:
     self.skip_delays = False # MAKES self.delay() A NO-OP, SO A HAND PLAYS OUT INSTANTLY
     self.debug_mode = True   # GATES self.debug() - THE STATE-TRANSITION TRACE
 
-    self.log(f"** Game (Re)initialised. **")
-    self.log(f"Starting in S{self.state} '{self.state_name()}'")
+    self.log(f"** Game (Re)initialised. **", color=applog.RED)
+    self.log(f"Starting in S{self.state} '{self.state_name()}'", color=applog.RED)
     self.dlg_waiting_for_players()
 
   # THE WHOLE GAME AS PLAIN JSON-ABLE DATA - USED FOR BOTH THE CLIENT PUSH AND THE SAVE
@@ -306,6 +306,10 @@ class GameStateMachine:
 
   # WRITES THE CURRENT STATE TO path (ATOMICALLY - TEMP FILE THEN RENAME)
   def save_state(self, path, reason=""):
+    # [AUTOSAVE] TAG SPECIFICALLY FOR self.autosave_path WRITES (VS THE MANUAL/ADMIN
+    # CHECKPOINT PATH, WHICH KEEPS THE GENERIC [LOG] TAG) - autosave() FIRES ON EVERY
+    # move_state() TRANSITION, SO IT'S BY FAR THE NOISIEST save_state() CALLER
+    tag = "AUTOSAVE" if path == self.autosave_path else "LOG"
     try:
       snapshot = self.to_dict()
       snapshot["save_version"] = SAVE_VERSION
@@ -314,9 +318,9 @@ class GameStateMachine:
       with open(tmp_path, "w") as f:
         json.dump(snapshot, f)
       os.replace(tmp_path, path)
-      self.log(f"Saved state to {os.path.basename(path)}. {reason}")
+      self.log(f"Saved state to {os.path.basename(path)}. {reason}", tag=tag)
     except Exception as e:
-      self.log(f"SAVE FAILED for {os.path.basename(path)}: {e}")
+      self.log(f"SAVE FAILED for {os.path.basename(path)}: {e}", tag=tag)
 
   # PERSISTENCE LAYER: CALLED AT EVERY SAFE CHECKPOINT SO A SERVICE RESTART CAN RESUME THE GAME
   def autosave(self):
@@ -326,7 +330,7 @@ class GameStateMachine:
   def clear_autosave(self):
     if self.autosave_path and os.path.exists(self.autosave_path):
       os.remove(self.autosave_path)
-      self.log(f"Cleared {os.path.basename(self.autosave_path)}.")
+      self.log(f"Cleared {os.path.basename(self.autosave_path)}.", tag="AUTOSAVE")
 
   # REBUILDS THE GAME IN PLACE FROM A SAVE FILE, RE-QUEUES ANY PENDING AUTO WORK, PUSHES.
   # RETURNS FALSE (AND LEAVES STATE UNTOUCHED) IF THE FILE IS MISSING/CORRUPT/WRONG VERSION.
@@ -398,10 +402,10 @@ class GameStateMachine:
       self.deck = new_deck
       self.kitty = new_kitty
     except Exception as e:
-      self.log(f"RESTORE FAILED from {os.path.basename(path)}: {e}")
+      self.log(f"RESTORE FAILED from {os.path.basename(path)}: {e}", tag="AUTOSAVE")
       return False
 
-    self.log(f"Restored state from {os.path.basename(path)}: S{self.state} '{self.state_name()}'")
+    self.log(f"Restored state from {os.path.basename(path)}: S{self.state} '{self.state_name()}'", tag="AUTOSAVE")
 
     # RE-QUEUE / REDO WORK THE OLD PROCESS HAD PENDING - OTHER GUI-DRIVEN STATES NEED NOTHING
     if self.state_name() == "DEALING":
@@ -443,31 +447,19 @@ class GameStateMachine:
     for remaining in range(seconds, 0, -1):
       dlg_fn(remaining)
       self.delay(1)
-  def log(self, message):   
-    caller_colors = {
-      'state_trans': '\033[31m',
-      '__init__': '\033[31m',
-    } 
-    caller = inspect.stack()[1].function  # Get the calling method's name
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {self.name} | {caller.ljust(12)} : {caller_colors.get(caller,'')}{message}\033[0m")
-  def debug(self, message):
+  def log(self, message, color="", tag="LOG"):
+    applog.tabled(self.name, f"[{tag}] {message}", color=color)
+  def debug(self, message, color=applog.RED):
     if self.debug_mode:
-        caller = inspect.stack()[1].function  # Get the calling method's name
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] {self.name} | {caller.ljust(12)} : \033[31m[DEBUG]\033[0m {message}")
+        applog.tabled(self.name, f"[DEBUG] {message}", color=color)
 
-  def dialog(self, message):   
+  def dialog(self, message, color=applog.BOLD + applog.GREEN):
     self.game_dialog = message
-    caller = inspect.stack()[1].function  # Get the calling method's name
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {self.name} | {caller.ljust(12)} : \033[1m\033[32m[DIALOG TO CLIENTS] {message}\033[0m")
+    applog.tabled(self.name, f"[DIALOG] {message}", color=color)
     self.sio_push()
   def move_state(self, tgt):
     self.state = tgt
-    caller = inspect.stack()[1].function  # Get the calling method's name
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {self.name} | {caller.ljust(12)} : \033[31m[Transition to S{self.state} '{self.state_name()}']\033[0m")
+    applog.tabled(self.name, f"[TRANSITION] to S{self.state}: '{self.state_name()}'", color=applog.RED)
     self.autosave() # every transition is a persistence checkpoint
     self.sio_push()
   # SEAT INDEX OF THE CONTRACT HOLDER (THE ONLY UN-PASSED PLAYER ONCE THE CONTRACT LOCKS)
@@ -604,7 +596,7 @@ class GameStateMachine:
         contractor = self.contractor_index()
         if contractor != None and len(list(filter(lambda card: card.rank == 15, self.players[contractor].hand.cards))):
           self.joker_prenom_open = True
-          self.log(f"{self.players[contractor].name} holds the Joker - pre-nomination available until the first lead.")
+          self.log(f"{self.players[contractor].name} holds the Joker - pre-nomination available until the first lead.", color=applog.RED)
       self.dlg_first_lead(self.players[self.player_focus].name, self.trumps)
       self.move_state(4)
       return
@@ -684,7 +676,7 @@ class GameStateMachine:
   # THE ONE DELIBERATE EXCEPTION (SEE main.py), STILL A PROCESS-WIDE BROADCAST.
   def sio_toast(self, text, kind="info", seconds=4, audience=None, category=None, logit=True):
     if logit:
-      self.log(f"[TOAST {kind}] {(category + ': ') if category else ''}{text}")
+      self.log(f"{kind}: {(category + ': ') if category else ''}{text}", color=applog.MAGENTA, tag="TOAST")
     if self.socketio is not None:
       self.socketio.emit('toast', data={"text": text, "kind": kind, "seconds": seconds,
                                         "audience": audience, "category": category}, room=self.name)
@@ -1266,7 +1258,7 @@ class GameStateMachine:
 
           # MOVE ON
           self.dlg_lead_suit(self.players[self.player_focus].name, self.trick_suit)
-          self.log(f"{name} played their {card_index}th card ({self.players[self.player_focus].table.full_str()}).") # LOG IS CLEANER IF THIS IS AFTER THE LEAD DIALOG
+          self.log(f"{name} played {self.players[self.player_focus].table.full_str()}.") # LOG IS CLEANER IF THIS IS AFTER THE LEAD DIALOG
           self.player_focus = self.next_seat(self.player_focus) # move focus to next player
           self.sio_push() # push to clients
 
@@ -1279,7 +1271,7 @@ class GameStateMachine:
             # PUBLIC RECORD FOR THE PLAYER BOTS: EVERY TABLED CARD, IN PLAY ORDER
             played = self.players[self.player_focus].table
             self.current_trick.append({"seat": self.player_focus, "suit": played.suit, "rank": played.rank})
-            self.log(f"{name} played their {card_index}th card ({self.players[self.player_focus].table.full_str()}).")
+            self.log(f"{name} played {self.players[self.player_focus].table.full_str()}.")
             self.player_focus = self.next_seat(self.player_focus) # move focus to next player
             self.sio_push() # push to clients
 
@@ -1292,7 +1284,7 @@ class GameStateMachine:
             # PUBLIC RECORD FOR THE PLAYER BOTS: EVERY TABLED CARD, IN PLAY ORDER
             played = self.players[played_by].table
             self.current_trick.append({"seat": played_by, "suit": played.suit, "rank": played.rank})
-            self.log(f"{name} played their {card_index}th card ({self.players[played_by].table.full_str()}).")
+            self.log(f"{name} played {self.players[played_by].table.full_str()}.")
             self.player_focus = None # TRICK COMPLETE - NO-ONE MAY ACT (OR BE HIGHLIGHTED) UNTIL WINNER IS DETERMINED
             self.sio_push() # push to clients
 

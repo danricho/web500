@@ -18,6 +18,8 @@ threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule
                       a failing job logs its traceback and fires the on_error hook
                       (wired to a SERVER ERROR toast); the worker always survives
 dotdict.py            dict subclass with attribute access (players/teams/bids)
+applog.py              shared log-line printer used by main.py and game_state.py, so every
+                      log line shares one "[YYYY-MM-DD HH:MM:SS] ..." format
 templates/game_client.j2.html    single-page client UI for one table (Jinja2)
 templates/choose_table.j2.html   table picker shown between login and the game client
 static/game_client.js            client logic: renders pushed state, emits player actions

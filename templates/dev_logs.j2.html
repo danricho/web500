@@ -10,6 +10,19 @@
     />
     <link rel="stylesheet" href="/static/vendor/css/normalize.css" />
     <link rel="stylesheet" href="/static/vendor/css/skeleton.css" />
+    <link
+      rel="icon"
+      type="image/png"
+      href="/static/images/favicon-96x96.png"
+      sizes="96x96"
+    />
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg" />
+    <link rel="shortcut icon" href="/static/images/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/images/apple-touch-icon.png"
+    />
     <link href="/static/layout.css?{{timeNow}}" rel="stylesheet" />
     <link href="/static/styling.css?{{timeNow}}" rel="stylesheet" />
     <style>
@@ -50,11 +63,13 @@
       #log-body {
         padding: 0.5rem 1rem 2rem;
         font-family: monospace;
-        line-height: 1;
+        line-height: 1.6rem;
+        font-size: 1.5rem;
       }
       .log-line {
         white-space: pre-wrap;
         word-break: break-all;
+        margin-bottom: 0.25rem;
       }
       .log-line.log-hidden {
         display: none;
@@ -90,10 +105,15 @@
       <span id="filter-count" class="italic"></span>
     </div>
 
+    <!-- log_text IS ALREADY HTML (applog.to_html() IN main.py CONVERTS EACH LINE'S
+         "\033[...m" CODES TO <span style=...> AND HTML-ESCAPES THE REST) - |safe IS
+         CORRECT HERE, NOT A BYPASS OF ESCAPING (THE ESCAPING ALREADY HAPPENED SERVER-SIDE) -->
+    <!-- KEEP THE for-LOOP BELOW ON ONE LINE - <pre> PRESERVES WHITESPACE VERBATIM, SO A
+         NEWLINE INSIDE THE LOOP BODY (EASY TO ADD BACK BY "TIDYING" THIS ONTO MULTIPLE
+         LINES) RENDERS AS A VISIBLE BLANK LINE AFTER EVERY SINGLE LOG ENTRY -->
     <pre
       id="log-body"
-    >{% for line in log_text.splitlines() %}<div class="log-line">{{ line }}</div>
-{% endfor %}</pre>
+    >{% for line in log_text.splitlines() %}<div class="log-line">{{ line | safe }}</div>{% endfor %}</pre>
 
     <script>
       function filterLogs() {
