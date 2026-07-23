@@ -109,6 +109,14 @@ manual checkpoint slot per table supports save/load during development.
 </details>
 
 <details>
+<summary><strong>Push notifications (optional)</strong></summary>
+
+pings a self-hosted [ntfy](https://ntfy.sh/) server whenever a human takes a seat at a
+table. Off by default; see [Notifications](#notifications-optional) below to enable it.
+
+</details>
+
+<details>
 <summary><strong>Mobile-friendly</strong></summary>
 
 responsive layout, modals sized for phones in both orientations, iOS-specific fixes
@@ -227,7 +235,19 @@ passcode (`{"passcode": ..., "admin_users": [...]}`). Edit it to set your own pa
 add your display name to `admin_users` if you want the in-game admin tools, then
 `sudo systemctl restart web500.service`.
 
-**5. Play.** Open `http://your-server:4030`, log in with a display name + the
+**5. (Optional) Push notifications when a player joins.** The first start also creates
+`data/ntfy.json`, disabled by default:
+
+```json
+{"enabled": false, "server": "https://ntfy.example.com", "topic": "web500", "auth_token": null}
+```
+
+To get a push notification (via [ntfy](https://ntfy.sh/)) whenever a human sits down at
+a table, set `enabled: true` and point `server`/`topic` at your ntfy instance
+(`auth_token` is only needed if that server requires one). No restart needed — it's
+re-read on every notification. Bot seatings (ADD BOTS, admin test mode) never notify.
+
+**6. Play.** Open `http://your-server:4030`, log in with a display name + the
 passcode, pick or create a table, and take a seat. The ADD BOTS button fills empty
 seats with bot players.
 
@@ -249,6 +269,12 @@ from client-supplied data, so players can't act as each other. The session-signi
 is auto-generated into `data/secret_key.txt` so logins survive restarts. `admin_users` in
 `data/auth.json` lists the names allowed to use the admin endpoints and the settings
 modal's admin section.
+
+### Notifications (optional)
+
+A self-hosted [ntfy](https://ntfy.sh/) server can be pinged whenever a human takes a
+seat — handy if you're not watching the browser tab. Off by default; see step 5 of the
+installation instructions above to turn it on via `data/ntfy.json`.
 
 ## Architecture
 

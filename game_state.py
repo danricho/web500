@@ -14,6 +14,7 @@ from threaded_schedule import schedule as schedule
 import applog
 
 import bots # BOT PLAYERS (INCL. THE ADMIN TEST-MODE BOT) LIVE OUTSIDE THE GAME RULES
+import ntfy # OPTIONAL ntfy PUSH NOTIFICATIONS (DISABLED BY DEFAULT - SEE ntfy.py)
 
 # SINGLE WORKER ON PURPOSE: ITS JOB QUEUE IS WHAT SERIALISES EVERY GAME MUTATION.
 # LONG-RUNNING WORK (auto_deal, auto_points, state_trans) IS QUEUED, NEVER CALLED
@@ -26,6 +27,19 @@ games = [] # FINISHED GAMES THIS PROCESS LIFETIME - IN MEMORY ONLY, SERVED BY /a
 # NAMES ARE STORED/DISPLAYED AS FIRST WRITTEN BUT COMPARED CASE-INSENSITIVELY
 def same_name(a, b):
   return a != None and b != None and str(a).casefold() == str(b).casefold()
+
+# RE-READ FROM data/auth.json EACH CALL (RARE - ONLY GATES THE ntfy SEAT-JOIN NOTIFICATION
+# BELOW) RATHER THAN CACHED, SO AN EDITED admin_users LIST TAKES EFFECT WITHOUT A RESTART -
+# SAME "NO CACHING" CHOICE ntfy.py MAKES FOR ITS OWN CONFIG. MIRRORS main.py's
+# is_admin_user() (SESSION-BASED, CACHED AUTH) BUT CAN'T REUSE IT - gui_sit() HAS ONLY A
+# NAME, NOT A FLASK SESSION, AND main.py IMPORTS game_state, NOT THE OTHER WAY ROUND.
+def _name_is_admin(name):
+  try:
+    with open(os.path.join(DATA_DIR, "auth.json")) as f:
+      admin_users = json.load(f).get("admin_users", [])
+  except Exception:
+    return False
+  return any(same_name(name, a) for a in admin_users)
 
 # SAVE FILES: AUTOSAVE PERSISTS THE LIVE GAME ACROSS SERVICE RESTARTS (LOADED AT STARTUP,
 # CLEARED BY /api/reinit); CHECKPOINT IS THE MANUAL ADMIN SAVE/LOAD SLOT (SEPARATE FILE).
@@ -865,6 +879,15 @@ class GameStateMachine:
       self.players[position].name = name
 
       self.dlg_welcome(name)
+      # HUMAN, NON-ADMIN JOINS ONLY - BOTH BOT KINDS ARE SEATED VIA THIS SAME gui_sit() CALL
+      # AND ARE NAME-PREFIXED (SEE bots.py), SO A PREFIX CHECK IS ENOUGH TO SKIP "ADD
+      # BOTS"/TEST-MODE SPAM WITHOUT A SEPARATE "IS THIS A BOT" PARAMETER THREADED THROUGH
+      # THE CALL. ADMINS ARE EXCLUDED TOO (Dan's CALL) - THE NOTIFICATION IS FOR THE HOST TO
+      # KNOW SOMEONE ELSE SHOWED UP, NOT TO PING THEM ABOUT THEIR OWN SEAT.
+      if (not str(name).startswith(bots.DEV_RANDOM_BOT_PREFIX)
+          and not str(name).startswith(bots.PLAYER_BOT_PREFIX)
+          and not _name_is_admin(name)):
+        ntfy.send("web500", f"{name} sat down at {self.name}")
       self.player_focus = None
       self.sio_push()
       schedule_t.jobqueue.put(self.state_trans)

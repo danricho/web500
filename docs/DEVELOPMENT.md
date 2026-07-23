@@ -19,14 +19,20 @@ threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule
                       (wired to a SERVER ERROR toast); the worker always survives
 dotdict.py            dict subclass with attribute access (players/teams/bids)
 applog.py              shared log-line printer used by main.py and game_state.py, so every
-                      log line shares one "[YYYY-MM-DD HH:MM:SS] ..." format
+                      log line shares one "[YYYY-MM-DD HH:MM:SS] SCOPE :::: message" format,
+                      each source tagged with a named ANSI color. `/dev/logs` (below)
+                      whitelists on that exact bracket to separate this app's own output
+                      from gunicorn/systemd/sudo noise in the raw journal, and re-renders
+                      the same ANSI codes as CSS spans (`to_html()`) for its HTML view
+ntfy.py               optional push notification (self-hosted ntfy) when a human joins a
+                      table; off by default, see "Notifications" below
 templates/game_client.j2.html    single-page client UI for one table (Jinja2)
 templates/choose_table.j2.html   table picker shown between login and the game client
 static/game_client.js            client logic: renders pushed state, emits player actions
 static/svg.js                    single lookup for every SVG icon the client swaps in at
                                  runtime (suit icons, bot-name icons, toolbar icons)
-data/                 runtime files (gitignored): auth, session key, data/tables/<name>/
-                      per-table saves
+data/                 runtime files (gitignored): auth, session key, ntfy config,
+                      data/tables/<name>/ per-table saves
 ```
 
 The server is authoritative; clients never compute game logic. Every browser connected
@@ -287,6 +293,26 @@ itself didn't need this — only the file *location* moved, not the shape). Note
 `restore_state()` deliberately never restores `self.name` from the save file's own
 `data["name"]` — a table's name is set once by the registry at construction (it doubles
 as the room/directory name) and must never drift from a restore.
+
+## Notifications (`ntfy.py`)
+
+Optional push notifications to a self-hosted [ntfy](https://ntfy.sh/) server — currently
+just "a human sat down at a table". **Disabled by default.** `ntfy.init(DATA_DIR)` (called
+once at startup in `main.py`) creates `data/ntfy.json` if missing
+(`{"enabled": false, "server": ..., "topic": ..., "auth_token": null}`) — gitignored, like
+`auth.json`/`secret_key.txt`, so a fresh checkout never phones home; edit that file to
+point it at a real server/topic (`auth_token` is an optional bearer token for a
+self-hosted server that requires auth). No restart needed — `ntfy.send(title, message)`
+reloads the config from disk on every call.
+
+`send()` is fire-and-forget: it spawns a short-lived daemon thread with a 5s timeout, so a
+slow or unreachable ntfy server can never stall a game action (same reasoning as
+`/admin/restart`'s deferred `Popen`). It is a no-op if disabled, unconfigured, or if
+`init()` was never called. Called from `gui_sit()` in `game_state.py`, filtered to real
+humans only — both bot kinds (`bots.DEV_RANDOM_BOT_PREFIX` "D|", `bots.PLAYER_BOT_PREFIX`
+"B|") are seated through the same `gui_sit()` call, so a name-prefix check is enough to
+skip ADD BOTS / test-mode seatings without threading a separate "is this a bot" flag
+through the call.
 
 ## Card model
 

@@ -71,6 +71,9 @@ applog.scoped("MAIN", f"http://{socket.gethostname()}:{PORT}", color=applog.RED)
 
 from game_state import *
 import bots
+import ntfy
+
+ntfy.init(DATA_DIR) # OPTIONAL PUSH NOTIFICATIONS (DISABLED BY DEFAULT) - SEE ntfy.py
 
 # ---------------------------------------------------------------------------
 # SIMPLE AUTH: SHARED GAME PASSCODE + SIGNED SESSION COOKIE. IDENTITY COMES ONLY
