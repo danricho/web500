@@ -329,6 +329,18 @@ Everything deeper — running without systemd, how multiple tables work, the ser
 contract, state-machine mechanics, admin endpoints and test mode, persistence internals
 and the card encodings — lives in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## History & use of AI
+
+The core of this app dates back to 2015; it was cleaned up and rewritten around a proper
+object-oriented state-machine framework (which was functional) in 2020; and in 2026 (with AI assistance as
+described below) gained Misère and a round of polish.
+
+Built solo in my limited spare time, with [Claude](https://claude.com/claude-code) used
+throughout the recent development to speed things up — turning design concepts into code,
+fleshing out code faster than working alone, keeping the docs aligned as the code
+moves, and estimating effort/risk on Roadmap items. Every change is reviewed and tested
+by hand before it is commited; nothing gets merged on trust.
+
 ## Roadmap
 
 Planned work, ranked by value/effort, lives in its own file:
