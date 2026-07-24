@@ -20,6 +20,7 @@ NTFY_FILE = None  # SET BY init() ONCE game_state.DATA_DIR IS KNOWN
 def init(data_dir):
   global NTFY_FILE
   NTFY_FILE = os.path.join(data_dir, "ntfy.json")
+  os.makedirs(data_dir, exist_ok=True)
   if not os.path.exists(NTFY_FILE):
     with open(NTFY_FILE, "w") as f:
       json.dump({

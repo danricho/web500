@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import threading
+import uuid
 
 from playing_cards import *
 from dotdict import dotdict as dd
@@ -285,10 +286,6 @@ class GameStateMachine:
   # FILES, SO EVERY FIELD ADDED HERE MUST ALSO BE READ BACK IN restore_state().
   # NOTE: THIS SENDS EVERY PLAYER'S HAND TO EVERY CLIENT - HIDING OPPONENTS' CARDS IS
   # PURELY A CLIENT-SIDE RENDERING CONCERN.
-  def __str__(self):
-    return f"{tss()}|{self.name}|{'str'.ljust(12)}: S{self.state} '{self.state_name()}'"
-  def __repr__(self):
-    return f"{tss()}|{self.name}|{'repr'.ljust(12)}: S{self.state} '{self.state_name()}'"
   def to_dict(self):
     dictionary = dd({attr:value for attr, value in self.__dict__.items()})
     dictionary.deck = self.deck.__dict__() if type(self.deck) != type(None) else None
@@ -328,7 +325,13 @@ class GameStateMachine:
       snapshot = self.to_dict()
       snapshot["save_version"] = SAVE_VERSION
       os.makedirs(os.path.dirname(path), exist_ok=True)
-      tmp_path = path + ".tmp"
+      # UNIQUE PER CALL (NOT JUST path + ".tmp") - move_state() AUTOSAVES ON THE WORKER
+      # THREAD WHILE EVERY SOCKET HANDLER IN main.py ALSO AUTOSAVES RIGHT AFTER ITS
+      # gui_* CALL, ON ITS OWN THREAD. TWO CONCURRENT SAVES TO THE SAME TABLE SHARING ONE
+      # FIXED .tmp PATH COULD CLOBBER EACH OTHER MID-WRITE OR RACE os.replace() (SEEN AS
+      # A LOGGED "SAVE FAILED ... No such file or directory", SELF-HEALING BUT WORTH
+      # CLOSING PROPERLY) - A UNIQUE SUFFIX MEANS CONCURRENT WRITERS NEVER SHARE A PATH.
+      tmp_path = f"{path}.{uuid.uuid4().hex}.tmp"
       with open(tmp_path, "w") as f:
         json.dump(snapshot, f)
       os.replace(tmp_path, path)
