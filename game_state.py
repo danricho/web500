@@ -890,7 +890,7 @@ class GameStateMachine:
       if (not str(name).startswith(bots.DEV_RANDOM_BOT_PREFIX)
           and not str(name).startswith(bots.PLAYER_BOT_PREFIX)
           and not _name_is_admin(name)):
-        ntfy.send("web500", f"{name} sat down at {self.name}")
+        ntfy.send("web500", f"{name} sat down at Web500 {self.name}")
       self.player_focus = None
       self.sio_push()
       schedule_t.jobqueue.put(self.state_trans)
