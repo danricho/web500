@@ -200,7 +200,7 @@ def index(path):
   # REPLACED ICON NEVER UPDATES ON RE-ADD EVEN AFTER CLEARING SAFARI'S CACHE.
   if path == "site.webmanifest":
     bust = str(int(time.time()))
-    {
+    manifest = {
       "name": "Web500",
       "short_name": "Web500",
       "icons": [
@@ -222,6 +222,18 @@ def index(path):
       "display": "standalone"
     }
     return app.response_class(json.dumps(manifest), mimetype="application/manifest+json")
+
+  # PRINTABLE SCORING REFERENCE + SCOREPAD - A SELF-CONTAINED STATIC FILE, LIVES IN
+  # docs/ (NOT static/) SINCE IT'S PROJECT DOCUMENTATION, NOT A GAME ASSET.
+  # DELIBERATELY NOT LOGIN-GATED (UNLIKE EVERYTHING ELSE HERE) - IT'S A REAL-LIFE
+  # PRINTABLE REFERENCE FOR PLAYING WITH AN ACTUAL DECK, NOT LIVE GAME STATE, SO
+  # SOMEONE SHOULD BE ABLE TO PRINT/SHARE IT WITHOUT LOGGING IN FIRST. STILL KEPT OUT
+  # OF SEARCH INDEXES (ITS OWN <meta name="robots"> TAG, SAME SPIRIT AS robots.txt
+  # ABOVE) SINCE IT'S NOT MEANT TO BE DISCOVERED, JUST LINKED TO. LINKED FROM THE
+  # RULES/BID-VALUES MODALS (_rules_modal.j2.html, game_client.j2.html).
+  if path == "scoring-reference.html":
+    docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+    return send_from_directory(docs_dir, "scoring-reference.html")
 
   if path == '':
     if not current_user():

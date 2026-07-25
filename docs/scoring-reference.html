@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Web500 — Scoring Reference &amp; Scorepad</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- SAME FONT AS THE LIVE APP'S "Web500" WORDMARK (skeleton.css's BASE
+     font-family, LOADED THE SAME WAY IN game_client.j2.html/login.j2.html/
+     choose_table.j2.html) - USED HERE ONLY FOR THE WORDMARK, NOT BODY TEXT,
+     SO A SLOW/BLOCKED FETCH NEVER AFFECTS READABILITY OF THE ACTUAL CONTENT. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --paper: #ffffff;
+        --paper-edge: #ece7f6;
+        --ink: #201f2e;
+        --ink-soft: #55536b;
+        --accent: #8f41d8;
+        --accent-soft: #ede1fa;
+        --rule: #d3cfe4;
+        --penalty: #8a2e2e;
+        --penalty-soft: #f3e4e2;
+        --display-face:
+          "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --body-face:
+          -apple-system, "Segoe UI", system-ui, "Helvetica Neue", Arial,
+          sans-serif;
+        --wordmark-face:
+          "Cairo", -apple-system, "Segoe UI", system-ui, sans-serif;
+        /* SAME PALETTE AS THE LIVE APP'S CARDS (styling.css) - KEPT AS ITS OWN
+           SET OF VARIABLES (NOT REUSING --accent/--ink) SO CARD-CHIP COLOURS NEVER
+           DRIFT IF THE SHEET'S OWN PAPER THEME CHANGES LATER. */
+        --card-white: #e9ecf0;
+        --card-border: #babdc2;
+        --card-red: #f44234;
+        --card-black: #252525;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper-edge);
+        color: var(--ink);
+        font-family: var(--body-face);
+        font-size: 14.5px;
+        line-height: 1.5;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page {
+        max-width: 780px;
+        margin: 0 auto;
+        background: var(--paper);
+        padding: 2.75rem 3rem 3.25rem;
+      }
+
+      .sheet {
+        box-shadow:
+          0 1px 3px rgba(32, 31, 46, 0.08),
+          0 12px 32px rgba(32, 31, 46, 0.1);
+        margin: 2.5rem auto;
+        border-radius: 2px;
+      }
+
+      /* ---------- masthead ---------- */
+
+      .masthead {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1.5rem;
+        border-bottom: 3px solid var(--ink);
+        padding-bottom: 0.85rem;
+        margin-bottom: 1.6rem;
+      }
+
+      .wordmark {
+        font-family: var(--wordmark-face);
+        font-weight: 800;
+        font-size: 2.15rem;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      .wordmark em {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .masthead .tagline {
+        font-family: var(--body-face);
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        margin-top: 0.15rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .masthead-right {
+        text-align: right;
+        font-size: 0.78rem;
+        color: var(--ink-soft);
+        line-height: 1.45;
+      }
+
+      .print-btn {
+        font-family: var(--body-face);
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        border: 1.5px solid var(--accent);
+        color: var(--accent);
+        background: #fff;
+        padding: 0.5rem 1rem;
+        border-radius: 3px;
+        cursor: pointer;
+        position: fixed;
+        top: 1.5rem;
+        right: max(1.5rem, calc((100vw - 780px) / 2 - 3rem));
+      }
+      .print-btn:hover {
+        background: var(--accent-soft);
+      }
+      .print-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* ---------- section scaffolding ---------- */
+
+      h2.section-head {
+        font-family: var(--display-face);
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin: 2rem 0 0.15rem;
+        text-wrap: balance;
+      }
+      .section-sub {
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+        margin: 0 0 0.9rem;
+        max-width: 62ch;
+      }
+      .section-head:first-of-type {
+        margin-top: 0;
+      }
+
+      p.lede {
+        max-width: 62ch;
+        color: var(--ink-soft);
+        font-size: 0.92rem;
+      }
+
+      /* ---------- basics grid ---------- */
+
+      .basics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin: 0.75rem 0 0.25rem;
+      }
+      .basics .card-fact {
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        padding: 0.75rem 0.85rem;
+      }
+      .basics .card-fact .k {
+        font-family: var(--display-face);
+        font-weight: 700;
+        font-size: 0.85rem;
+        color: var(--accent);
+        margin-bottom: 0.3rem;
+        text-wrap: balance;
+      }
+      .basics .card-fact .v {
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+      }
+
+      /* ---------- card chips (same suit icons/colours/rank text as the live
+         app - see cardChip() below, ported from static/svg.js + game_client.js) --------- */
+
+      .card-chip {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 60px;
+        border: 1px solid var(--card-border);
+        border-radius: 4px;
+        background: var(--card-white);
+        vertical-align: middle;
+        line-height: 1;
+        gap: 10px;
+      }
+      .card-chip .cc-rank {
+        font-family: "Roboto Slab", var(--display-face), serif;
+        font-weight: bold;
+        font-size: 0.95rem;
+      }
+      .card-chip .cc-suit {
+        width: 11px;
+        height: 11px;
+      }
+      .card-chip.suit-red {
+        color: var(--card-red);
+      }
+      .card-chip.suit-black {
+        color: var(--card-black);
+      }
+      .card-chip.joker-chip {
+        color: var(--accent);
+        font-family: "Roboto Slab", var(--display-face), serif;
+        font-weight: bold;
+        font-size: 0.5rem;
+        line-height: 1;
+        letter-spacing: 0.02em;
+      }
+      .chip-label {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+        text-align: center;
+        width: 5.5rem;
+      }
+
+      /* ---------- tables ---------- */
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.86rem;
+        margin: 0.4rem 0 0.2rem;
+      }
+      caption {
+        text-align: left;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--ink-soft);
+        padding-bottom: 0.3rem;
+      }
+      th {
+        text-align: center;
+        font-family: var(--body-face);
+        font-weight: 700;
+        font-size: 0.78rem;
+        color: var(--ink-soft);
+        border-bottom: 1.5px solid var(--ink);
+        padding: 0.4rem 0.55rem;
+      }
+      th:first-child {
+        text-align: left;
+      }
+      td {
+        padding: 0.4rem 0.55rem;
+        border-bottom: 1px solid var(--rule);
+        vertical-align: middle;
+        text-align: center;
+      }
+      td:first-child {
+        text-align: left;
+      }
+      tr:last-child td {
+        border-bottom: 1.5px solid var(--ink);
+      }
+      td.num,
+      th.num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      tr.hi td {
+        background: var(--accent-soft);
+      }
+      th.suit-red {
+        color: var(--card-red);
+      }
+      th .suit-th-icon {
+        width: 13px;
+        height: 13px;
+        vertical-align: middle;
+      }
+
+      /* ---------- bower/trump ladder ---------- */
+
+      .ladder {
+        display: flex;
+        align-items: center;
+        gap: 1.1rem;
+        flex-wrap: wrap;
+        margin: 0.6rem 0 0.2rem;
+      }
+      .ladder .arrow {
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+        margin: 0 -0.3rem;
+      }
+      .ladder .then {
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        max-width: 14rem;
+      }
+
+      /* ---------- callouts ---------- */
+
+      .callouts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin: 1rem 0;
+      }
+      .callout {
+        border: 1px solid var(--rule);
+        border-left: 4px solid var(--accent);
+        border-radius: 2px;
+        padding: 0.8rem 0.95rem;
+      }
+      .callout.penalty {
+        border-left-color: var(--penalty);
+      }
+      .callout h3 {
+        font-family: var(--display-face);
+        font-size: 0.95rem;
+        margin: 0 0 0.35rem;
+      }
+      .callout p {
+        margin: 0.3rem 0 0;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+      }
+      .callout .example {
+        margin-top: 0.55rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+      }
+      .callout .example .eq {
+        color: var(--ink-soft);
+      }
+      .callout .example .total {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .callout.penalty .total {
+        color: var(--penalty);
+      }
+      .callout:not(.penalty) .total {
+        color: var(--accent);
+      }
+
+      /* ---------- play & the joker list ---------- */
+
+      .rules-list {
+        margin: 0.5rem 0 0;
+        padding-left: 1.1rem;
+        font-size: 0.85rem;
+        color: var(--ink-soft);
+      }
+      .rules-list li {
+        margin-bottom: 0.4rem;
+      }
+      .rules-list em {
+        font-style: normal;
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      /* ---------- variant / credit ---------- */
+
+      .config-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1.75rem;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+        padding: 0.65rem 0;
+        margin: 1.4rem 0 0.2rem;
+      }
+      .config-line b {
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      .credit {
+        margin-top: 1.75rem;
+        padding-top: 0.85rem;
+        border-top: 1px solid var(--rule);
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+      }
+      .credit a {
+        color: var(--accent);
+      }
+
+      /* ---------- scorepad page ---------- */
+
+      .scorepad-page {
+        break-before: page;
+      }
+
+      .pad-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--ink);
+        padding-bottom: 0.75rem;
+        margin-bottom: 1.1rem;
+      }
+      .pad-head .wordmark {
+        font-size: 1.5rem;
+      }
+      .pad-fields {
+        font-size: 0.78rem;
+        color: var(--ink-soft);
+        display: flex;
+        gap: 1.5rem;
+      }
+      .fillblank {
+        display: inline-block;
+        min-width: 4.5rem;
+        border-bottom: 1px solid var(--ink-soft);
+      }
+
+      table.pad {
+        font-size: 0.86rem;
+      }
+      table.pad th {
+        border-bottom: 1.5px solid var(--ink);
+        text-align: center;
+        padding: 0.5rem 0.4rem;
+      }
+      table.pad th:first-child {
+        text-align: center;
+      }
+      table.pad th .name-blank {
+        display: block;
+        margin-top: 0.4rem;
+        height: 1.1rem;
+        border-bottom: 1px solid var(--ink-soft);
+      }
+      table.pad td {
+        border: 1px solid var(--rule);
+        height: 2.3rem;
+        padding: 0 0.4rem;
+        text-align: center;
+      }
+      table.pad td:first-child,
+      table.pad td.contract-col {
+        text-align: center;
+      }
+      table.pad td.hand-no {
+        color: var(--ink-soft);
+        font-variant-numeric: tabular-nums;
+        width: 2.4rem;
+      }
+      table.pad td.contract-col {
+        width: 8rem;
+        color: var(--ink-soft);
+      }
+      table.pad tr:nth-child(6n + 1) td {
+        border-top: 1.5px solid var(--ink);
+      }
+
+      .pad-note {
+        font-size: 0.76rem;
+        color: var(--ink-soft);
+        margin-top: 0.9rem;
+      }
+
+      @media (max-width: 700px) {
+        .page {
+          padding: 1.75rem 1.25rem 2.5rem;
+        }
+        .basics {
+          grid-template-columns: 1fr;
+        }
+        .callouts {
+          grid-template-columns: 1fr;
+        }
+        .print-btn {
+          position: static;
+          margin-bottom: 1rem;
+        }
+        .masthead {
+          flex-wrap: wrap;
+        }
+      }
+
+      @media print {
+        body {
+          background: var(--paper);
+        }
+        .sheet {
+          box-shadow: none;
+          margin: 0;
+          border-radius: 0;
+        }
+        .page {
+          max-width: none;
+          padding: 0;
+        }
+        .print-btn {
+          display: none;
+        }
+        .scorepad-page {
+          break-before: page;
+        }
+        a {
+          color: inherit;
+          text-decoration: none;
+        }
+      }
+
+      /* PAGE-BREAK CONTROL - THE REFERENCE SHEET (PAGE 1) IS FULL ENOUGH THAT IT MAY
+     SPILL ONTO A SECOND SHEET DEPENDING ON THE BROWSER'S PRINT ENGINE/FONT METRICS
+     (THE SCOREPAD, PAGE 2, ALWAYS STARTS ITS OWN VIA break-before ABOVE REGARDLESS).
+     RATHER THAN FIGHTING TO FORCE EXACTLY ONE SHEET, EACH .blk (ONE HEADING + ITS
+     TABLE/CONTENT) STAYS TOGETHER AND MOVES TO THE NEXT PAGE AS A WHOLE IF IT
+     DOESN'T FIT, SO A BREAK NEVER LANDS MID-TABLE OR ORPHANS A HEADING AT THE
+     BOTTOM OF A PAGE. APPLIES ON SCREEN TOO (break-inside/break-after ARE HARMLESS
+     THERE), NOT JUST @media print. */
+      .blk {
+        break-inside: avoid;
+      }
+      h2.section-head,
+      .callout h3,
+      .pad-head {
+        break-after: avoid;
+      }
+      tr,
+      .callout {
+        break-inside: avoid;
+      }
+
+      @page {
+        size: A4;
+        margin: 16mm 14mm;
+      }
+    </style>
+  </head>
+  <body>
+    <button class="print-btn no-print" onclick="window.print()">
+      Print this page ↗
+    </button>
+
+    <div class="sheet">
+      <div class="page">
+        <div class="masthead">
+          <div>
+            <div class="wordmark">Web<em>500</em></div>
+            <div class="tagline">
+              Scoring Reference &amp; Printable Scorepad
+            </div>
+          </div>
+          <div class="masthead-right">
+            Australian four-handed edition<br />
+            For playing with a real deck
+          </div>
+        </div>
+
+        <p class="lede">
+          Four players, two fixed partnerships (you and the player opposite are
+          partners). One team wins the bidding and commits to a
+          <em>contract</em>: a trump suit (or no trumps) and a number of tricks.
+          Make it and your team scores the bid's value; fail and that value is
+          deducted. First team to 500 wins outright.
+        </p>
+
+        <div class="basics blk">
+          <div class="card-fact">
+            <div class="k">The pack</div>
+            <div class="v">
+              43 cards: red suits (<span style="color: var(--card-red)"
+                >&hearts;&#xFE0E;</span
+              >
+              <span style="color: var(--card-red)">&diams;&#xFE0E;</span>) run 4
+              up to Ace, black suits (&spades;&#xFE0E; &clubs;&#xFE0E;) run 5 up
+              to Ace, plus one Joker.
+            </div>
+          </div>
+          <div class="card-fact">
+            <div class="k">The deal</div>
+            <div class="v">
+              10 cards to each player, 3 face-down to the middle as the
+              <b>kitty</b> — the winning bidder picks these up before discarding
+              back down to ten.
+            </div>
+          </div>
+          <div class="card-fact">
+            <div class="k">Ending the game</div>
+            <div class="v">
+              First team to reach <b>500</b> wins. A team falling to
+              <b>&minus;500</b> or worse loses immediately — "out the back door"
+              — even mid-hand.
+            </div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h2 class="section-head">Bid Values</h2>
+          <p class="section-sub">
+            Every bid must beat the one before it. Same trick count, suits rank
+            low to high left to right; Misère only over a seven (worth 250 —
+            beats 8&spades;&#xFE0E; but not 8&clubs;&#xFE0E;).
+          </p>
+          <table id="bidTable">
+            <thead>
+              <tr>
+                <th>Tricks</th>
+                <th data-suit="1"></th>
+                <th data-suit="2"></th>
+                <th class="suit-red" data-suit="3"></th>
+                <th class="suit-red" data-suit="4"></th>
+                <th>No Trumps</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Six</td>
+                <td class="num">40</td>
+                <td class="num">60</td>
+                <td class="num">80</td>
+                <td class="num">100</td>
+                <td class="num">120</td>
+              </tr>
+              <tr>
+                <td>Seven</td>
+                <td class="num">140</td>
+                <td class="num">160</td>
+                <td class="num">180</td>
+                <td class="num">200</td>
+                <td class="num">220</td>
+              </tr>
+              <tr class="hi">
+                <td>Misère</td>
+                <td class="num" colspan="5">250</td>
+              </tr>
+              <tr>
+                <td>Eight</td>
+                <td class="num">240</td>
+                <td class="num">260</td>
+                <td class="num">280</td>
+                <td class="num">300</td>
+                <td class="num">320</td>
+              </tr>
+              <tr>
+                <td>Nine</td>
+                <td class="num">340</td>
+                <td class="num">360</td>
+                <td class="num">380</td>
+                <td class="num">400</td>
+                <td class="num">420</td>
+              </tr>
+              <tr>
+                <td>Ten</td>
+                <td class="num">440</td>
+                <td class="num">460</td>
+                <td class="num">480</td>
+                <td class="num">500</td>
+                <td class="num">520</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="section-sub" style="margin-top: 0.5rem">
+            <b>Slam:</b> winning all ten tricks always scores at least 250, even
+            on a cheaper bid. <b>Failed contract:</b> the bid's value is
+            deducted (score can go negative). The other team scores 10 per trick
+            they win regardless — except against Misère, where they score
+            nothing.
+          </p>
+        </div>
+
+        <div class="blk">
+          <h2 class="section-head">Trumps, Bowers &amp; the Joker</h2>
+          <p class="section-sub">
+            In a suit contract the top three trumps outrank everything else,
+            highest first — shown here for a <strong>Spades</strong> contract:
+          </p>
+          <div class="ladder">
+            <span class="chip-label">
+              <span data-card="joker"></span>
+              Joker
+            </span>
+            <span class="arrow">&gt;</span>
+            <span class="chip-label">
+              <span data-card="1,11"></span>
+              Right bower<br />(Jack of trumps)
+            </span>
+            <span class="arrow">&gt;</span>
+            <span class="chip-label">
+              <span data-card="2,11"></span>
+              Left bower<br />(Jack of same colour)
+            </span>
+            <span class="arrow">&gt;</span>
+            <span class="then">then Ace, King, Queen… down as normal</span>
+          </div>
+          <p class="section-sub" style="margin-top: 0.6rem">
+            The left bower belongs to the trump suit for following and winning,
+            not the suit printed on it — pairs are &spades;&#xFE0E; &harr;
+            &clubs;&#xFE0E; and
+            <span style="color: var(--card-red)">&diams;&#xFE0E;</span> &harr;
+            <span style="color: var(--card-red)">&hearts;&#xFE0E;</span>. In No
+            Trumps and Misère the Joker is the only trump; leading it means
+            nominating a suit (one not yet led this hand) for the others to
+            follow.
+          </p>
+        </div>
+
+        <div class="blk">
+          <h2 class="section-head">Special Contracts</h2>
+          <p class="section-sub">
+            Two rules worth a callout — both change how the hand is scored.
+          </p>
+          <div class="callouts">
+            <div class="callout">
+              <h3>Misère</h3>
+              <p>
+                A contract to lose <em>every</em> trick, no trumps. The bidder's
+                partner sits out (three-card tricks); the contract fails the
+                instant the bidder wins a trick.
+              </p>
+              <div class="example">
+                <span>Bid Misère</span>
+                <span class="eq">→</span>
+                <span>lose all 10 tricks</span>
+                <span class="eq">=</span>
+                <span class="total">+250</span>
+              </div>
+            </div>
+            <div class="callout penalty">
+              <h3>Open Misère (optional)</h3>
+              <p>
+                A bolder Misère worth 500: the same lose-every-trick contract,
+                but the bidder's hand is laid face-up on the table for everyone
+                to see for the whole hand. Play it as an extra rung above
+                ordinary Misère if your table wants the higher-stakes version.
+              </p>
+              <div class="example">
+                <span>Bid Open Misère</span>
+                <span class="eq">→</span>
+                <span>win one trick</span>
+                <span class="eq">=</span>
+                <span class="total">&minus;500</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h2 class="section-head">Playing the Hand</h2>
+          <ul class="rules-list">
+            <li>
+              The contract winner leads first; play moves clockwise. Follow suit
+              if you can — otherwise play anything, trump in or throw off a
+              loser.
+            </li>
+            <li>
+              The highest trump played wins the trick, or the highest card of
+              the suit led if no trumps were played. The winner leads next.
+            </li>
+            <li>
+              Holding only the left bower of the suit led does <em>not</em>
+              force you to play it — it's a trump, not that suit, for this
+              purpose.
+            </li>
+            <li>
+              In Misère, if you can't follow suit and hold the (un-nominated)
+              Joker, you must play it.
+            </li>
+          </ul>
+        </div>
+
+        <div class="blk">
+          <div class="config-line">
+            <span
+              ><b>House-rule fill-ins —</b> Target score:
+              <span class="fillblank"></span> &nbsp; Playing Open Misère?
+              <span class="fillblank" style="min-width: 3rem"></span
+            ></span>
+          </div>
+
+          <div class="credit">
+            This summary follows the Australian four-handed game as described by
+            John McLeod at
+            <a href="https://www.pagat.com/euchre/500.html" target="_blank"
+              >pagat.com/euchre/500.html</a
+            >. For the definitive treatment and every regional variation, see
+            that page.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet scorepad-page">
+      <div class="page">
+        <div class="pad-head">
+          <div class="wordmark">Web<em>500</em></div>
+          <div class="pad-fields">
+            <span
+              >Team 1: <span class="fillblank" style="min-width: 7rem"></span
+            ></span>
+            <span
+              >Team 2: <span class="fillblank" style="min-width: 7rem"></span
+            ></span>
+            <span
+              >Date: <span class="fillblank" style="min-width: 5rem"></span
+            ></span>
+          </div>
+        </div>
+
+        <table class="pad">
+          <thead>
+            <tr>
+              <th>Hand</th>
+              <th>Contract</th>
+              <th>Team 1<span class="name-blank"></span></th>
+              <th>Team 2<span class="name-blank"></span></th>
+            </tr>
+          </thead>
+          <tbody id="padRows"></tbody>
+        </table>
+
+        <p class="pad-note">
+          Write each hand's running total (not just the points added) so a big
+          swing — or the ±500 finish — is easy to spot. "Contract" column: note
+          the bid and who won it, e.g. "7<span style="color: var(--card-red)"
+            >&hearts;&#xFE0E;</span
+          >
+          N" or "Misère S".
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // ---------------------------------------------------------------
+      // CARD CHIPS - PORTED FROM static/svg.js (SUIT_ICON_SVG) AND
+      // game_client.js (SUIT_COL/RANK_DISP) SO THIS STANDALONE SHEET RENDERS
+      // CARDS WITH THE EXACT SAME SUIT ICONS, COLOURS AND RANK TEXT AS THE
+      // LIVE GAME, WITHOUT DEPENDING ON THOSE FILES BEING LOADABLE HERE.
+      // ---------------------------------------------------------------
+      var SUIT_ICON_PATH = {
+        1: '<path d="M7.184 11.246A3.5 3.5 0 0 1 1 9c0-1.602 1.14-2.633 2.66-4.008C4.986 3.792 6.602 2.33 8 0c1.398 2.33 3.014 3.792 4.34 4.992C13.86 6.367 15 7.398 15 9a3.5 3.5 0 0 1-6.184 2.246 20 20 0 0 0 1.582 2.907c.231.35-.02.847-.438.847H6.04c-.419 0-.67-.497-.438-.847a20 20 0 0 0 1.582-2.907"/>',
+        2: '<path d="M11.5 12.5a3.5 3.5 0 0 1-2.684-1.254 20 20 0 0 0 1.582 2.907c.231.35-.02.847-.438.847H6.04c-.419 0-.67-.497-.438-.847a20 20 0 0 0 1.582-2.907 3.5 3.5 0 1 1-2.538-5.743 3.5 3.5 0 1 1 6.708 0A3.5 3.5 0 1 1 11.5 12.5"/>',
+        3: '<path d="M2.45 7.4 7.2 1.067a1 1 0 0 1 1.6 0L13.55 7.4a1 1 0 0 1 0 1.2L8.8 14.933a1 1 0 0 1-1.6 0L2.45 8.6a1 1 0 0 1 0-1.2"/>',
+        4: '<path d="M4 1c2.21 0 4 1.755 4 3.92C8 2.755 9.79 1 12 1s4 1.755 4 3.92c0 3.263-3.234 4.414-7.608 9.608a.513.513 0 0 1-.784 0C3.234 9.334 0 8.183 0 4.92 0 2.755 1.79 1 4 1"/>',
+      };
+      var SUIT_COL = [null, "suit-black", "suit-black", "suit-red", "suit-red"];
+      var SUIT_HTML = [
+        null,
+        "&spades;&#xFE0E;",
+        "&clubs;&#xFE0E;",
+        "<span style='color: var(--card-red)'>&diams;&#xFE0E;</span>",
+        "<span style='color: var(--card-red)'>&hearts;&#xFE0E;</span>",
+      ];
+      var RANK_DISP = [
+        null,
+        null,
+        null,
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "J",
+        "Q",
+        "K",
+        "A",
+      ];
+
+      function suitIconSvg(suit) {
+        return (
+          '<svg class="cc-suit" viewBox="0 0 16 16" fill="currentColor">' +
+          SUIT_ICON_PATH[suit] +
+          "</svg>"
+        );
+      }
+
+      // data-card="joker" OR data-card="suit,rank" (suit 1-4, rank 3-14)
+      function cardChipHtml(spec) {
+        if (spec === "joker") {
+          return '<span class="card-chip joker-chip">J<br>O<br>K<br>E<br>R</span>';
+        }
+        var parts = spec.split(",");
+        var suit = Number(parts[0]);
+        var rank = Number(parts[1]);
+        return (
+          '<span class="card-chip ' +
+          SUIT_COL[suit] +
+          '"><span class="cc-rank">' +
+          RANK_DISP[rank] +
+          "</span>" +
+          suitIconSvg(suit) +
+          "</span>"
+        );
+      }
+
+      document.querySelectorAll("[data-card]").forEach(function (el) {
+        el.innerHTML = cardChipHtml(el.getAttribute("data-card"));
+      });
+
+      // BID VALUES TABLE HEADER SUIT ICONS (th[data-suit]) - SAME suitIconSvg()
+      document.querySelectorAll("th[data-suit]").forEach(function (el) {
+        var suit = Number(el.getAttribute("data-suit"));
+        el.innerHTML =
+          '<svg class="suit-th-icon" viewBox="0 0 16 16" fill="currentColor">' +
+          SUIT_ICON_PATH[suit] +
+          "</svg>";
+      });
+
+      var rows = "";
+      for (var i = 1; i <= 22; i++) {
+        rows +=
+          '<tr><td class="hand-no">' +
+          i +
+          '</td><td class="contract-col"></td><td></td><td></td></tr>';
+      }
+      document.getElementById("padRows").innerHTML = rows;
+    </script>
+  </body>
+</html>

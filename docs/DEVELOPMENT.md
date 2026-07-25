@@ -28,6 +28,14 @@ ntfy.py               optional push notification (ntfy, self-hosted or public) w
                       table; off by default, see "Notifications" below
 templates/game_client.j2.html    single-page client UI for one table (Jinja2)
 templates/choose_table.j2.html   table picker shown between login and the game client
+docs/scoring-reference.html      standalone printable scoring reference + blank scorepad, no
+                                 Jinja/{{}} - served as a static file (not through render_template)
+                                 by main.py's index() at /scoring-reference.html. Deliberately NOT
+                                 login-gated (unlike everything else here) - it's a real-life
+                                 printable reference, not live game state, so it can be printed/
+                                 shared without logging in; kept out of search indexes via its own
+                                 <meta name="robots"> tag instead. Linked as "PRINTABLE VERSION"
+                                 from both the rules modal and the bid-values modal.
 static/game_client.js            client logic: renders pushed state, emits player actions
 static/svg.js                    single lookup for every SVG icon the client swaps in at
                                  runtime (suit icons, bot-name icons, toolbar icons)
