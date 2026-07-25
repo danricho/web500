@@ -160,6 +160,7 @@ function displayName(text) {
   return replacePrefixIcons(escapeHtml(text));
 }
 var forceScoreboardDisplay = false;
+var observerSeat = 0; // OBSERVER-ONLY: WHICH SEAT THE "ME" POSITION IS ANCHORED TO (ROTATE VIEW BUTTON)
 var lastGameDialog = null; // raw server dialog string (compared before the B| icon substitution)
 var playedCardsTableCount = 0; // tracks table card count so jitter re-rolls on trick sweep
 var myHandFanSlots = null; // my hand's rendered slot layout during PLAY HAND: card objects with nulls where played cards left gaps (null = no gap layout active)
@@ -432,19 +433,30 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
   $("#clear-checkpoint").toggle(connected);
   $("#restart-service").toggle(connected && restartEnabled);
 
+  // OBSERVER MODE (CLIENT-ONLY): AN UNSEATED VIEWER USED TO BE STUCK ON THIS SEAT-PICKER
+  // FOR THE WHOLE GAME (!amSeated FORCED IT OPEN REGARDLESS OF STATE) - NOW IT ONLY SHOWS
+  // WHILE SEATING IS ACTUALLY POSSIBLE (WAITING FOR PLAYERS) OR NOT YET LOGGED IN. ONCE
+  // DEALING STARTS AN UNSEATED VIEWER FALLS THROUGH TO .game-layer BELOW LIKE ANYONE ELSE
+  // (HANDS RENDER AS BACKS - SEE THE #p-me FACE-TOGGLE ABOVE). EXITING OBSERVING GOES
+  // BACK TO THE TABLE PICKER (.change-table, MADE VISIBLE IN THE HUD BELOW) RATHER THAN
+  // RE-OPENING THIS MODAL MID-GAME - THE PICKER'S OWN LIVE-POLLED LIST IS ALREADY THE
+  // "DID A SEAT OPEN UP" CHECK, NO NEED TO DUPLICATE IT HERE.
   $("#lobby-modal").toggle(
-    connected &&
-      (gameState == "WAITING FOR PLAYERS" || username == "" || !amSeated),
+    connected && (gameState == "WAITING FOR PLAYERS" || username == ""),
   );
   $("#choose-seat-div").toggle(username != "");
 
   $(".game-layer").toggle(
-    connected &&
-      gameState != "WAITING FOR PLAYERS" &&
-      username != "" &&
-      amSeated,
+    connected && gameState != "WAITING FOR PLAYERS" && username != "",
   );
   $("#bidding-box").toggle(gameState == "TAKING BIDS" && meFocus);
+  // OBSERVER-ONLY HUD BUTTON: CYCLE WHICH SEAT "ME" IS ANCHORED TO (SEE meSlot IN
+  // processGameStateData) - MEANS NOTHING ONCE SEATED. .change-table (ALREADY WIRED TO
+  // /api/change_table) GETS A SECOND, HUD-VISIBLE INSTANCE FOR THE SAME REASON - SEE
+  // ITS OWN TOGGLE BELOW, UNCHANGED FROM BEFORE OBSERVER MODE EXISTED.
+  $(".rotate-view").toggle(
+    connected && !amSeated && gameState != "WAITING FOR PLAYERS",
+  );
 
   $(".tricks-display").toggle(["AWARD KITTY", "PLAY HAND"].includes(gameState));
 
@@ -453,7 +465,7 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
     connected &&
       gameState != "WAITING FOR PLAYERS" &&
       (forceScoreboardDisplay ||
-        (gameState == "AWARD POINTS" && username != "" && amSeated)),
+        (gameState == "AWARD POINTS" && username != "")),
   );
   if (!scoresWasVisible && $("#scores-modal").is(":visible")) {
     scrollScoresToBottom();
@@ -692,7 +704,6 @@ function processGameStateData(data) {
   var prenomOffer = data.joker_prenom_open && data.player_focus == idxMe;
   var showJokerPane =
     gameState == "PLAY HAND" &&
-    amSeated &&
     (data.joker_nominating ||
       jokerNominated ||
       jokerPrenominated ||
@@ -802,16 +813,28 @@ function processGameStateData(data) {
 
   // if data is null o undefined stuff may break - progress with full seats, while seated and named.
   var gameStarted = !["WAITING FOR PLAYERS"].includes(gameState);
-  if (gameStarted && haveAUsername && amSeated) {
-    idxNext = (idxMe + 1) % 4;
-    idxPartner = (idxMe + 2) % 4;
-    idxPrevious = (idxMe + 3) % 4;
+  if (gameStarted && haveAUsername) {
+    // OBSERVER (UNSEATED VIEWER): NO REAL SEAT TO ANCHOR THE #p-me/next/partner/previous
+    // LAYOUT ON, SO PIN IT TO SEAT 0 PURELY FOR DOM MAPPING - idxMe ITSELF STAYS -1 (SET
+    // ABOVE) SO EVERY "index == idxMe" CHECK BELOW STILL CORRECTLY NEVER TREATS ANY SEAT
+    // AS "MINE" (NO FAN LAYOUT, NO LEGAL-PLAY DARKENING, NO "YOUR TURN" HIGHLIGHT).
+    var meSlot = amSeated ? idxMe : observerSeat;
+    idxNext = (meSlot + 1) % 4;
+    idxPartner = (meSlot + 2) % 4;
+    idxPrevious = (meSlot + 3) % 4;
 
     // MAP PLAYERS TO ELEMENTS
-    data.players[idxMe].seat_element_id = "#p-me";
+    data.players[meSlot].seat_element_id = "#p-me";
     data.players[idxNext].seat_element_id = "#p-next";
     data.players[idxPartner].seat_element_id = "#p-partner";
     data.players[idxPrevious].seat_element_id = "#p-previous";
+
+    // #p-me's CARDS WERE CLONED data-face="front" AT STARTUP (createCards()) SINCE A
+    // SEATED PLAYER ALWAYS SEES THEIR OWN HAND FACE UP THERE. AN OBSERVER HAS NO "OWN"
+    // HAND, SO FLIP THAT SLOT TO MATCH THE OTHER THREE (BACK VISIBLE, FRONT HIDDEN) EVERY
+    // PUSH - CLIENT-SIDE ONLY, SAME TRUST MODEL AS HIDING OPPONENTS' HANDS ALREADY IS.
+    $("#p-me card face.front").toggle(amSeated);
+    $("#p-me card face.back").toggle(!amSeated);
 
     // MISÈRE: DARKEN THE SAT-OUT PARTNER'S CARDS
     $(".player").removeClass("sitting-out");
@@ -942,7 +965,7 @@ function processGameStateData(data) {
     }
     // UPDATE TABLE CARDS
     if (
-      data.players[idxMe].hand === null ||
+      data.players[meSlot].hand === null ||
       data.players[idxNext].hand === null ||
       data.players[idxPartner].hand === null ||
       data.players[idxPrevious].hand === null
@@ -950,7 +973,7 @@ function processGameStateData(data) {
       $("#played-cards cards").hide();
     } else {
       var tableCards = [
-        data.players[idxMe].table,
+        data.players[meSlot].table,
         data.players[idxNext].table,
         data.players[idxPartner].table,
         data.players[idxPrevious].table,
@@ -985,7 +1008,7 @@ function processGameStateData(data) {
         winningSeat = lastTrick.winner; // GLOW IT WHILE THE WON TRICK LINGERS ON THE TABLE
       }
       var playedCardIds = {};
-      playedCardIds[idxMe] = "#p-me-played";
+      playedCardIds[meSlot] = "#p-me-played";
       playedCardIds[idxNext] = "#p-next-played";
       playedCardIds[idxPartner] = "#p-partner-played";
       playedCardIds[idxPrevious] = "#p-previous-played";
@@ -1349,15 +1372,21 @@ $(document).ready(function () {
 
   $(".unforce-scores").click(function () {
     forceScoreboardDisplay = false;
-    $("#scores-modal").toggle(
-      gameState == "AWARD POINTS" && username != "" && amSeated,
-    );
+    $("#scores-modal").toggle(gameState == "AWARD POINTS" && username != "");
   });
 
   $(".force-scores").click(function () {
     forceScoreboardDisplay = true;
     $("#scores-modal").toggle(forceScoreboardDisplay);
     scrollScoresToBottom();
+  });
+
+  // OBSERVER-ONLY: CYCLE WHICH SEAT THE "ME" POSITION IS ANCHORED TO (meSlot IN
+  // processGameStateData) SO AN UNSEATED VIEWER CAN LOOK AT THE TABLE FROM ANY OF THE
+  // FOUR SEATS. RE-RUNS THE LAST PUSH IMMEDIATELY RATHER THAN WAITING FOR THE NEXT ONE.
+  $(".rotate-view").click(function () {
+    observerSeat = (observerSeat + 1) % 4;
+    if (lastPushData) processGameStateData(lastPushData);
   });
 
   $(".toggle-bid-ref").click(function () {

@@ -171,17 +171,18 @@
           var seats =
             "Team 1: " + displayName(t.players[0]) + ", " + displayName(t.players[2]) + "<br>" +
             "Team 2: " + displayName(t.players[1]) + ", " + displayName(t.players[3]);
-          var action;
-          if (t.already_seated || !t.full) {
-            action =
-              '<form method="get" action="/api/select_table">' +
-              '<input type="hidden" name="id" value="' + escapeHtml(t.name) + '">' +
-              '<button type="submit" class="button-success">' +
-              (t.already_seated ? "REJOIN" : "JOIN") +
-              "</button></form>";
-          } else {
-            action = '<span class="italic" style="opacity: 0.7">FULL</span>';
-          }
+          // FULL + NOT ALREADY SEATED: STILL SELECTABLE, JUST AS AN OBSERVER (SAME
+          // /api/select_table ENDPOINT - IT NO LONGER 403s A FULL TABLE, SEE main.py).
+          // game_client.j2.html RENDERS AN UNSEATED VIEWER'S HANDS AS BACKS AUTOMATICALLY.
+          var label = t.already_seated ? "REJOIN" : !t.full ? "JOIN" : "OBSERVE";
+          var action =
+            '<form method="get" action="/api/select_table">' +
+            '<input type="hidden" name="id" value="' + escapeHtml(t.name) + '">' +
+            '<button type="submit" class="' +
+            (label === "OBSERVE" ? "button-small" : "button-success") +
+            '">' +
+            label +
+            "</button></form>";
           html +=
             '<fieldset class="table-row"><legend class="bold" style="color: var(--primary-color-light); background-color: var(--bg-darker); padding: 0 1rem; margin-bottom: -1rem;">' +
             escapeHtml(t.name) +

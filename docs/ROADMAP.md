@@ -150,27 +150,32 @@ carries the diagnostics and fix shapes.
    `state_trans()` (route to re-deal or scoring instead of AWARD KITTY), a new `dlg_*`
    builder, the bidding box UI, and the rules modal.
 
-1. **Observer/spectator mode** — an explicit "just watching" option that only ever
-   sees table cards, bids and the public event log — never any player's hand, even a
-   seated player's own. Distinct from today's implicit spectating (anyone unseated
-   already sees the full push, hands included) - a genuine hand-hiding mode needs
-   server-side filtering, not just client-side hiding.
+1. **Server-side hand filtering for observers** — DONE client-side (2026-07-25): an
+   unseated viewer now renders every hand as backs (`game_client.js`'s `meSlot`/
+   `observerSeat` anchor + the `#p-me` face-toggle), can join a full table as an
+   observer straight from the table picker (OBSERVE button, replacing the old
+   `/api/select_table` 403), rotate which seat "me" anchors to (ROTATE VIEW), and exit
+   back to the picker via the same CHANGE TABLE button/action seated players use (now
+   HUD-visible too) - genuinely usable for a dev/host who just wants to watch. What's
+   left is **not** about making
+   observing possible (that part's solved) - it's that the server still sends every
+   player's full hand to that unseated client's raw `game_state` push regardless of what
+   the UI chooses to render, so anyone who opens dev tools (or a modified client) reads
+   every hand instantly. That's an anti-cheat/integrity gap, not a UX one: fine for
+   players (CLAUDE.md's "each has a real reason to trust the others"), but not for a
+   truly adversarial viewer. Low priority unless that risk starts to matter (e.g.
+   competitive play, or non-trusted observers).
 
-   _Detail (medium, needs a design decision first):_ today "every client receives every
-   player's hand — hiding opponents' cards is a client-side rendering concern, not a
-   server one" is fine for players (each has a real reason to trust the
-   others), but an observer with the raw payload could trivially inspect every hand in
-   the browser console. That means `to_dict()`/`sio_push()` can no longer send one
-   identical payload to the whole room — an observer's push must have every
-   `players[i].hand` (and arguably `kitty`) nulled out server-side before it leaves the
-   process, while seated players keep receiving their own full state. Needs a design
-   decision on the shape: per-viewer filtering at push time (one `to_dict()` per
-   audience — "own hand" vs "hidden") is the honest fix but touches the core
-   `sio_push()` broadcast path meaningfully; a cheaper first cut could restrict observer
-   status to spectators only (never a seated player choosing to self-blind) and filter
-   just their own connection's pushes. Touches: `to_dict()`/`sio_push()` (per-audience
-   payload), the lobby/table-picker UI (an explicit "observe" choice, not just staying
-   unseated), and probably a per-connection flag alongside `session['table_id']`.
+   _Detail (medium, needs a design decision first):_ `to_dict()`/`sio_push()` can no
+   longer send one identical payload to the whole room — an observer's push must have
+   every `players[i].hand` (and arguably `kitty`) nulled out server-side before it
+   leaves the process, while seated players keep receiving their own full state. Needs
+   a design decision on the shape: per-viewer filtering at push time (one `to_dict()`
+   per audience — "own hand" vs "hidden") is the honest fix but touches the core
+   `sio_push()` broadcast path meaningfully; a cheaper first cut could restrict this to
+   spectators only (never a seated player choosing to self-blind) and filter just their
+   own connection's pushes. Touches: `to_dict()`/`sio_push()` (per-audience payload) and
+   probably a per-connection flag alongside `session['table_id']`.
 
 1. **Save/restore idle windows** — saves written between "action queued work" and
    "worker ran it" restore into a stuck game; several known windows, all rare races.

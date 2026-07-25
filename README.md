@@ -33,6 +33,15 @@ while is automatically cleaned up.
 </details>
 
 <details>
+<summary><strong>Watch a live game</strong></summary>
+
+anyone logged in but not seated can watch a table in progress — every hand renders
+face-down, a ROTATE VIEW button cycles which seat you're looking from, and a SEATS
+button re-opens the seat picker mid-game in case one frees up.
+
+</details>
+
+<details>
 <summary><strong>Correct special-card handling</strong></summary>
 
 joker as highest trump, left/right bowers, follow-suit enforcement including the

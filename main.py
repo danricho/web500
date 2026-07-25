@@ -260,12 +260,12 @@ def index(path):
     target = tables.get(request.args.get("id"))
     if target is None:
       return "no such table", 404
-    already_seated_here = any(same_name(current_user(), p.name) for p in target.players)
-    # A FULL TABLE CAN'T BE JOINED BY A NEWCOMER - THE POINT OF MULTIPLE TABLES IS TO
-    # CREATE ANOTHER ONE, NOT SPECTATE A FULL ONE. SOMEONE ALREADY SEATED HERE (E.G.
-    # session['table_id'] WENT STALE) CAN STILL REJOIN THEIR OWN TABLE THOUGH.
-    if not already_seated_here and all(p.name is not None for p in target.players):
-      return "table is full", 403
+    # A FULL TABLE USED TO 403 A NEWCOMER OUTRIGHT ("SPECTATING A FULL TABLE ISN'T THE
+    # POINT, CREATE ANOTHER ONE"). NOW THAT AN UNSEATED VIEWER GETS A GENUINE OBSERVER
+    # EXPERIENCE (game_client.js's meSlot/observerSeat - HANDS RENDER AS BACKS, SEATS/
+    # ROTATE VIEW BUTTONS), A NEWCOMER MAY SELECT A FULL TABLE TOO - THEY JUST WON'T GET
+    # A SEAT. SOMEONE ALREADY SEATED HERE (E.G. session['table_id'] WENT STALE) STILL
+    # JUST REJOINS THEIR OWN TABLE AS BEFORE.
     # NAME-CASING ADOPTION (RELOCATED FROM login() - THERE'S NO TABLE TO CHECK
     # AGAINST AT LOGIN TIME ANY MORE): IF THIS NAME IS ALREADY SEATED AT *THIS*
     # TABLE, ADOPT ITS EXACT SPELLING

@@ -529,7 +529,10 @@
                    been dealt yet, so /api/change_table properly vacates the seat rather
                    than orphaning it) OR ANY TIME THE VIEWER ISN'T SEATED (nothing to
                    vacate, and otherwise they'd be stranded on a table that moved on
-                   without them - see game_client.js's updateComponentVisibility). -->
+                   without them - see game_client.js's updateComponentVisibility). Once
+                   dealing starts this modal is hidden for an unseated viewer (they're
+                   observing instead) - the HUD carries a second instance of this same
+                   button/action for that case (see the top-left HUD block below). -->
               <div class="modal-actions">
                 <button
                   type="button"
@@ -1115,6 +1118,32 @@
             style="display: none"
           >
             SCOREBOARD
+          </button>
+        </div>
+        <!-- OBSERVER-ONLY (UNSEATED VIEWER MID-GAME): CYCLE WHICH SEAT THE "ME" POSITION
+             SHOWS - SEE updateComponentVisibility()/processGameStateData()'s meSlot IN
+             game_client.js. HIDDEN FOR SEATED PLAYERS. -->
+        <div id="" class="enable-mouse">
+          <button
+            type="button"
+            class="rotate-view button-small btn-outline-secondary my-1 quarter-opac"
+            onclick="event.preventDefault()"
+            style="display: none"
+          >
+            ROTATE VIEW
+          </button>
+        </div>
+        <!-- SAME CHANGE-TABLE BUTTON/ACTION AS THE SEAT PICKER'S (class="change-table" -
+             ONE click HANDLER, ONE toggle() IN game_client.js COVERS BOTH INSTANCES) -
+             HUD-VISIBLE SO AN OBSERVER (WHO NO LONGER SEES THE SEAT PICKER MID-GAME) HAS
+             A DIRECT WAY BACK TO THE TABLE PICKER WITHOUT DIGGING THROUGH A MODAL. -->
+        <div id="" class="enable-mouse">
+          <button
+            type="button"
+            class="change-table button-small btn-outline-secondary my-1 quarter-opac"
+            style="display: none"
+          >
+            CHANGE TABLE
           </button>
         </div>
       </div>
