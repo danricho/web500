@@ -194,6 +194,35 @@ def index(path):
   if path == "robots.txt":
     return app.response_class("User-agent: *\nDisallow: /\n", mimetype="text/plain")
 
+  # SERVED HERE (NOT AS A PLAIN /static/images/ FILE) SO ITS ICON src FIELDS CAN CARRY
+  # THE SAME timeNow CACHE-BUST QUERY PARAM AS EVERY <link>/<script> TAG - iOS CACHES
+  # HOME-SCREEN/MANIFEST ICONS AGGRESSIVELY BY EXACT URL, SO A STATIC src IS WHY A
+  # REPLACED ICON NEVER UPDATES ON RE-ADD EVEN AFTER CLEARING SAFARI'S CACHE.
+  if path == "site.webmanifest":
+    bust = str(int(time.time()))
+    {
+      "name": "Web500",
+      "short_name": "Web500",
+      "icons": [
+        {
+          "src": f"/static/images/web-app-manifest-192x192.png?{bust}",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "maskable"
+        },
+        {
+          "src": f"/static/images/web-app-manifest-512x512.png?{bust}",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ],
+      "theme_color": "#ffffff",
+      "background_color": "#ffffff",
+      "display": "standalone"
+    }
+    return app.response_class(json.dumps(manifest), mimetype="application/manifest+json")
+
   if path == '':
     if not current_user():
       applog.scoped("FLASK", "HTML Request: Login", color=applog.BLUE)

@@ -25,18 +25,22 @@
     <link
       rel="icon"
       type="image/png"
-      href="/static/images/favicon-96x96.png"
+      href="/static/images/favicon-96x96.png?{{timeNow}}"
       sizes="96x96"
     />
-    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg" />
-    <link rel="shortcut icon" href="/static/images/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/static/images/favicon.svg?{{timeNow}}"
+    />
+    <link rel="shortcut icon" href="/static/images/favicon.ico?{{timeNow}}" />
     <link
       rel="apple-touch-icon"
       sizes="180x180"
       href="/static/images/apple-touch-icon.png"
     />
     <meta name="apple-mobile-web-app-title" content="Web500" />
-    <link rel="manifest" href="/static/images/site.webmanifest" />
+    <link rel="manifest" href="/site.webmanifest?{{timeNow}}" />
 
     <script src="/static/vendor/js/jquery-3.5.1.min.js"></script>
     <script src="/static/vendor/js/socket.io.js"></script>
