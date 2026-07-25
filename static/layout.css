@@ -9,6 +9,12 @@ body {
   -moz-user-select: none;
   -webkit-user-select: none;
   user-select: none;
+  /* STOPS iOS SAFARI'S DOUBLE-TAP-TO-ZOOM GESTURE (RAPID TAPS ON BUTTONS/DICE
+    WERE TRIGGERING IT DESPITE THE VIEWPORT META'S maximum-scale=1 - THAT ONLY
+    LOCKS PINCH-ZOOM, NOT THE SEPARATE DOUBLE-TAP GESTURE). PINCH-ZOOM ITSELF
+    (AN ACCESSIBILITY FEATURE) IS UNAFFECTED - THIS ONLY DROPS THE DOUBLE-TAP
+    SHORTCUT, NOT ZOOM ENTIRELY. */
+  touch-action: manipulation;
 }
 
 .height-100 {
@@ -197,7 +203,9 @@ body {
    CLEARS THE TABLE) - z-index KEEPS THE GLOW ABOVE THE OTHER STACKED CARDS. */
 .trick-winner {
   z-index: 5;
-  box-shadow: 0 0 16px 4px var(--primary-color), 0 0 4px 1px var(--primary-color-light);
+  box-shadow:
+    0 0 16px 4px var(--primary-color),
+    0 0 4px 1px var(--primary-color-light);
   transition: box-shadow 0.3s ease;
 }
 
