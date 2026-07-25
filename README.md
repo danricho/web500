@@ -95,7 +95,7 @@ running totals with each hand's contract, tricks and points, in a scrollable mod
 
 a scrollable rules modal covering the Australian four-handed game in plain language
 (credited to pagat.com), including the game's current limitations; reachable from the
-lobby, scoreboard and settings modals.
+login page (before you've even joined a table) and the settings modal.
 
 </details>
 

@@ -121,6 +121,12 @@
               </form>
             </fieldset>
 
+            <div class="mt-3">
+              <button type="button" class="show-rules button-small">
+                GAME RULES
+              </button>
+            </div>
+
             <div class="modal-meta">
               <small
                 >Created by
@@ -134,6 +140,33 @@
           </div>
         </div>
       </div>
+
+      {% include "_rules_modal.j2.html" %}
     </div>
+
+    <script>
+      // NO jQuery ON THIS PAGE (SAME DELIBERATELY-LIGHT REASONING AS
+      // choose_table.j2.html) - PLAIN JS RE-IMPLEMENTATION OF THE SAME
+      // show-rules/hide-rules/backdrop-close BEHAVIOUR game_client.js DRIVES
+      // WITH jQuery FOR THE SAME SHARED _rules_modal.j2.html MARKUP.
+      var rulesModal = document.getElementById("rules-modal");
+      document.querySelectorAll(".show-rules").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          rulesModal.style.display = "block";
+          var scroll = rulesModal.querySelector(".rules-scroll");
+          if (scroll) scroll.scrollTop = 0;
+        });
+      });
+      document.querySelectorAll(".hide-rules").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          rulesModal.style.display = "none";
+        });
+      });
+      rulesModal.addEventListener("click", function (e) {
+        if (!e.target.closest(".modal-box")) {
+          rulesModal.style.display = "none";
+        }
+      });
+    </script>
   </body>
 </html>
