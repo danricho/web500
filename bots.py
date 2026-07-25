@@ -831,9 +831,10 @@ def player_bot_check(game):
       # GREP-FRIENDLY LINE FOR OFFLINE BOT-TUNING REVIEW (SEE docs/BOTS.md) - ESTIMATE
       # VS ACTUAL BID, SEPARATE FROM THE PLAYER-FACING dlg_bid_* DIALOGS
       if not decision["pass"] and bot.last_estimates:
-        est = bot.last_estimates.get(decision["suit"])
+        est = bot.last_estimates.get(decision["suit"]) # None FOR MISÈRE (suit 0) - NOT IN estimates
+        est_str = f"{est:.2f}" if est is not None else "n/a"
         game.log(f"{bot.name} bid {decision['tricks']} {SUIT_STR[decision['suit']]} "
-                 f"(estimate={est:.2f} confidence={bot.personality['confidence']:.3f})",
+                 f"(estimate={est_str} confidence={bot.personality['confidence']:.3f})",
                  color=applog.CYAN, tag="BOT")
       game.gui_bid(bot.name, decision)
 
