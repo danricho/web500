@@ -974,12 +974,15 @@ function processGameStateData(data) {
       // TO THE LAST COMPLETED TRICK WHILE CARDS ARE STILL ON THE TABLE.
       var trickOrder = data.current_trick || [];
       var trickHistory = data.trick_history || [];
+      var winningSeat = null;
       if (
         trickOrder.length === 0 &&
         tableCount > 0 &&
         trickHistory.length > 0
       ) {
-        trickOrder = trickHistory[trickHistory.length - 1].cards;
+        var lastTrick = trickHistory[trickHistory.length - 1];
+        trickOrder = lastTrick.cards;
+        winningSeat = lastTrick.winner; // GLOW IT WHILE THE WON TRICK LINGERS ON THE TABLE
       }
       var playedCardIds = {};
       playedCardIds[idxMe] = "#p-me-played";
@@ -987,11 +990,14 @@ function processGameStateData(data) {
       playedCardIds[idxPartner] = "#p-partner-played";
       playedCardIds[idxPrevious] = "#p-previous-played";
       $("#played-cards card").removeClass(
-        "play-order-1 play-order-2 play-order-3 play-order-4",
+        "play-order-1 play-order-2 play-order-3 play-order-4 trick-winner",
       );
       trickOrder.forEach(function (play, order) {
         $(playedCardIds[play.seat]).addClass("play-order-" + (order + 1));
       });
+      if (winningSeat !== null) {
+        $(playedCardIds[winningSeat]).addClass("trick-winner");
+      }
     }
 
     // HIGHEST BID SO FAR... ranked the same way the server's gui_bid ranks bids:

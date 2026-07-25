@@ -192,6 +192,14 @@ body {
 .play-order-4 {
   z-index: 4;
 }
+/* WINNING CARD OF A JUST-COMPLETED TRICK, SET IN game_client.js ONLY DURING THE
+   WON-TRICK LINGER (dlg_won_trick'S PAUSE, BEFORE THE NEXT LEAD OR HAND-END SWEEP
+   CLEARS THE TABLE) - z-index KEEPS THE GLOW ABOVE THE OTHER STACKED CARDS. */
+.trick-winner {
+  z-index: 5;
+  box-shadow: 0 0 16px 4px var(--primary-color), 0 0 4px 1px var(--primary-color-light);
+  transition: box-shadow 0.3s ease;
+}
 
 .enable-mouse {
   pointer-events: auto;
