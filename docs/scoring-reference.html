@@ -84,6 +84,18 @@
         margin-bottom: 1.6rem;
       }
 
+      .wordmark-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .masthead-logo {
+        height: 1.6rem;
+        width: auto;
+        flex-shrink: 0;
+        color: var(--accent);
+      }
+
       .wordmark {
         font-family: var(--wordmark-face);
         font-weight: 800;
@@ -148,8 +160,13 @@
         margin: 0 0 0.9rem;
         max-width: 62ch;
       }
-      .section-head:first-of-type {
-        margin-top: 0;
+      /* :first-of-type WON'T DO HERE - EACH h2.section-head IS THE ONLY h2 IN ITS OWN
+         .blk WRAPPER, SO EVERY ONE OF THEM COUNTS AS "FIRST OF ITS TYPE AMONG ITS OWN
+         SIBLINGS" (THAT PSEUDO-CLASS IS SCOPED PER-PARENT, NOT PER-DOCUMENT) - IT WAS
+         ZEROING margin-top ON ALL OF THEM, NOT JUST THE FIRST. .first IS SET ON THE ONE
+         ACTUAL FIRST HEADING IN THE MARKUP INSTEAD. */
+      .section-head.first {
+        /* margin-top: 0; */
       }
 
       p.lede {
@@ -423,6 +440,15 @@
       .pad-head .wordmark {
         font-size: 1.5rem;
       }
+      /* "Web" STRUCK THROUGH ONLY HERE ON THE SCOREPAD - IT'S THE ONE PAGE MEANT
+         PURELY FOR REAL-LIFE PLAY (THE REFERENCE SHEET'S RULES APPLY TO THE WEB
+         GAME TOO, SO ITS WORDMARK STAYS PLAIN). text-decoration-thickness/-color
+         OVERRIDE THE DEFAULT (THIN, TEXT-COLOURED) <s> RENDERING FOR A BOLDER LINE. */
+      .pad-head .wordmark s {
+        text-decoration-line: line-through;
+        text-decoration-thickness: 0.14em;
+        text-decoration-color: var(--ink);
+      }
       .pad-fields {
         font-size: 0.78rem;
         color: var(--ink-soft);
@@ -561,7 +587,28 @@
       <div class="page">
         <div class="masthead">
           <div>
-            <div class="wordmark">Web<em>500</em></div>
+            <div class="wordmark-row">
+              <svg
+                class="masthead-logo"
+                version="1.1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 100 73.54"
+                fill="currentColor"
+              >
+                <path
+                  d="M99.7,0.02H82.04c-0.37,0-0.71,0.22-0.86,0.56l-14.71,34.1c-0.19,0.44-0.79,0.52-1.08,0.13L50.3,14.92
+                  c-0.15-0.2-0.45-0.2-0.6,0L34.61,34.81c-0.29,0.38-0.89,0.31-1.08-0.13L18.82,0.58c-0.15-0.34-0.48-0.56-0.86-0.56H0.3
+                  c-0.14,0-0.24,0.15-0.18,0.28l31.15,72.86c0.1,0.23,0.33,0.39,0.58,0.39h8.71c0.25,0,0.48-0.12,0.63-0.32l5.17-7.11
+                  c0,0-6.09,2.19-8.97-2.26c-3.05-4.71,0.63-8.79,0.63-8.79l11.42-14.27c0.29-0.36,0.83-0.36,1.12,0l11.42,14.27
+                  c0,0,3.68,4.08,0.63,8.79c-2.88,4.45-8.97,2.26-8.97,2.26l5.17,7.11c0.15,0.2,0.38,0.32,0.63,0.32h8.71c0.25,0,0.48-0.15,0.58-0.39
+                  L99.88,0.29C99.94,0.16,99.84,0.02,99.7,0.02z"
+                />
+              </svg>
+              <span class="wordmark">Web<em>500</em></span>
+            </div>
             <div class="tagline">
               Scoring Reference &amp; Printable Scorepad
             </div>
@@ -595,9 +642,10 @@
           <div class="card-fact">
             <div class="k">The deal</div>
             <div class="v">
-              10 cards to each player, 3 face-down to the middle as the
-              <b>kitty</b> — the winning bidder picks these up before discarding
-              back down to ten.
+              Dealt in batches — 3 to all, 1 to the kitty, 4 to all, 1 to the
+              kitty, 3 to all, 1 to the kitty: 10 cards each, 3 face-down to the
+              middle as the <b>kitty</b> — the winning bidder picks these up
+              before discarding back down to ten.
             </div>
           </div>
           <div class="card-fact">
@@ -611,7 +659,7 @@
         </div>
 
         <div class="blk">
-          <h2 class="section-head">Bid Values</h2>
+          <h2 class="section-head first">Bid Values</h2>
           <p class="section-sub">
             Every bid must beat the one before it. Same trick count, suits rank
             low to high left to right; Misère only over a seven (worth 250 —
@@ -799,7 +847,10 @@
             <a href="https://www.pagat.com/euchre/500.html" target="_blank"
               >pagat.com/euchre/500.html</a
             >. For the definitive treatment and every regional variation, see
-            that page.
+            that page. This sheet is generated from
+            <a href="https://github.com/danricho/web500" target="_blank"
+              >github.com/danricho/web500</a
+            >.
           </div>
         </div>
       </div>
@@ -808,7 +859,7 @@
     <div class="sheet scorepad-page">
       <div class="page">
         <div class="pad-head">
-          <div class="wordmark">Web<em>500</em></div>
+          <div class="wordmark"><s>Web</s><em>500</em></div>
           <div class="pad-fields">
             <span
               >Team 1: <span class="fillblank" style="min-width: 7rem"></span
