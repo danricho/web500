@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="docs/logo.svg"/>
+
 # Web500
+
+</div>
 
 A multiplayer web implementation of the Euchre based card game **500** — four players, fixed
 partnerships, played in the browser. Rules follow the
@@ -249,7 +255,12 @@ add your display name to `admin_users` if you want the in-game admin tools, then
 `data/ntfy.json`, disabled by default:
 
 ```json
-{"enabled": false, "server": "https://ntfy.example.com", "topic": "web500", "auth_token": null}
+{
+  "enabled": false,
+  "server": "https://ntfy.example.com",
+  "topic": "web500",
+  "auth_token": null
+}
 ```
 
 To get a push notification (via [ntfy](https://ntfy.sh/)) whenever a human sits down at
