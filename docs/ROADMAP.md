@@ -133,23 +133,6 @@ carries the diagnostics and fix shapes.
    _Detail (medium):_ partly stale: `move_state()` already exists. Remaining work is
    thinning repetitive debug/dialog blocks per branch of `state_trans()`.
 
-1. **Let a lone winning bidder resign instead of contracting** — when everyone else has
-   passed, offer "resign" alongside the increase option, so a regretted bid needn't be
-   played out. Contained change, but needs a scoring decision before any code.
-
-   _Detail (medium, needs a rules decision first):_ the hook already exists — once only
-   one bidder remains, `gui_bid()` flags them `bid.passed = "WINNER_INCREASE_OPTION"`
-   and `dlg_bid_increase_option()` offers increase-or-pass. Resign becomes a third
-   choice at that same moment, before the kitty is seen. The open question is scoring,
-   and it must be settled first: does the would-be contractor lose the bid value, do
-   the opponents score anything, or is it a plain re-deal (with or without a penalty)?
-   Check the pagat "Australian Four-handed Five Hundred" section for a sanctioned
-   variant rather than inventing one — and note the bidder here has not yet seen the
-   kitty, so this is regret at the bid, not at the hand. Touches: `gui_bid()` (a new
-   flag value beside `"WINNER"` / `"WINNER_INCREASE_OPTION"`), the S2 branch of
-   `state_trans()` (route to re-deal or scoring instead of AWARD KITTY), a new `dlg_*`
-   builder, the bidding box UI, and the rules modal.
-
 1. **Server-side hand filtering for observers** — DONE client-side (2026-07-25): an
    unseated viewer now renders every hand as backs (`game_client.js`'s `meSlot`/
    `observerSeat` anchor + the `#p-me` face-toggle), can join a full table as an

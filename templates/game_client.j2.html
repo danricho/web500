@@ -296,6 +296,16 @@
                 style=""
               ></div>
             </div>
+            <!-- SAME BUTTON STYLING AS #discard-pane ABOVE - SHOWN ONLY DURING THE WINNING
+                 LONE BIDDER'S OWN "WINNER_INCREASE_OPTION" WINDOW (SEE gui_bid()/
+                 gui_resign_bid() IN game_state.py), AND ONLY WHEN THIS TABLE'S
+                 allow_resign SETTING IS ON. NO PENALTY, RE-DEAL - SAME AS IF NO-ONE HAD
+                 BID. -->
+            <div id="resign-pane" class="text-center m-1" style="display: none">
+              <button type="button" class="resign-btn my-1 enable-mouse">
+                Resign
+              </button>
+            </div>
             <div class="">
               <div
                 id="bidding-box"
@@ -522,6 +532,16 @@
                 <div class="modal-actions mt-4">
                   <button type="button" id="add-bots" style="display: none">
                     ADD BOTS
+                  </button>
+                </div>
+                <!-- TABLE SETTING, TOGGLEABLE BY ANY PLAYER WHILE WAITING FOR PLAYERS
+                     (gui_toggle_allow_resign() ONLY ACCEPTS IT AT THIS STAGE) - LETS A
+                     WINNING LONE BIDDER RESIGN INSTEAD OF CONTRACTING, NO PENALTY, RE-DEAL.
+                     LABEL KEPT IN SYNC WITH THE LIVE game_state PUSH, SAME AS THE ADMIN
+                     SETTINGS MODAL'S EQUIVALENT BUTTON. -->
+                <div class="modal-actions mt-3">
+                  <button type="button" id="lobby-toggle-allow-resign" class="button-small">
+                    SINGLE BID EXIT: OFF
                   </button>
                 </div>
               </fieldset>
@@ -853,6 +873,25 @@
                     style="display: none"
                   >
                     SKIP DELAYS: OFF
+                  </button>
+                </div>
+                <div class="modal-btn-row">
+                  <button
+                    type="button"
+                    id="toggle-allow-resign"
+                    class="button-small"
+                    onclick="
+                      event.preventDefault();
+                      $.ajax({
+                        url: '/admin/toggleresign' + adminTableQuery(),
+                      }).done(function () {
+                        $.ajax({ url: '/api/client_trigger_push' });
+                        refreshAdminTableSelect();
+                      });
+                    "
+                    style="display: none"
+                  >
+                    SINGLE BID EXIT: OFF
                   </button>
                 </div>
                 <div class="bold mt-3">Checkpoint</div>

@@ -151,6 +151,7 @@ selected table is this browser's own) rather than always showing this table's st
 | `/dev/logs`                 | Raw service log viewer (`?n=` trailing line count, default 1000) with a client-side substring filter. Reads via `sudo -n journalctl -u <unit>` — the same passwordless-sudo mechanism `/admin/restart`'s `RESTART_COMMAND` already relies on, so no extra host setup. Same admin-gated-but-`dev/`-path reasoning as `/dev/cards`. Process-global. |
 | `/admin/clearchk`          | Delete the target table's manual checkpoint file (`?table=`-aware).                                                     |
 | `/admin/skipdelays`        | Toggle skipping of all dramatic pauses on the target table (`?table=`-aware).                                           |
+| `/admin/toggleresign`      | Toggle "Single Bid Exit" on the target table (`?table=`-aware) — lets a winning lone bidder resign instead of contracting, no penalty, straight re-deal. Off by default; any player can also toggle it from the seating screen while WAITING FOR PLAYERS. |
 | `/admin/uptime`            | JSON: version, process start time, uptime in seconds, and whether a restart command is configured. Process-global.      |
 | `/admin/restart`           | Run `RESTART_COMMAND` (see `main.py`) to restart the service. Autosaves every table first; each is restored on the way back up. Process-global. |
 | `/api/client_trigger_push` | Force a full state push to the caller's own table only.                                                                 |
@@ -167,7 +168,8 @@ The server is authoritative; clients never compute game logic. A client:
 1. Connects via Socket.IO (polling transport, `table_id` on the query string — see
    "Multi-table" above) and receives that table's full state.
 2. Emits actions — `seat_request`, `bid_submit`, `discard_submit`, `play_card`,
-   `joker_nominate`, `add_bots` — which `main.py` resolves to a target table (via the
+   `joker_nominate`, `add_bots`, `resign_bid`, `toggle_allow_resign` — which `main.py`
+   resolves to a target table (via the
    socket's own joined room, never the live session — see "Multi-table") and routes to
    the matching `gui_*` method on it (`add_bots` instead queues
    `bots.seat_player_bots`, and requires the requester to already be seated). A global
@@ -224,7 +226,13 @@ section above. Key mechanics for anyone working on the code:
 - **Bidding endgame**: when only one active bidder remains, they get a single opportunity
   to raise their own bid before the contract locks. This is tracked with
   `bid.passed = "WINNER"` / `"WINNER_INCREASE_OPTION"` flags — game logic must key off
-  these flags, never off dialog text.
+  these flags, never off dialog text. During that same `"WINNER_INCREASE_OPTION"` window,
+  if the table's `allow_resign` setting ("Single Bid Exit") is on, the bidder may instead
+  call `gui_resign_bid()` — no penalty, straight re-deal (resets every player's bid and
+  re-queues `auto_deal`, identical to the "all four passed" path). `allow_resign` itself
+  is toggled by any player while WAITING FOR PLAYERS (`gui_toggle_allow_resign()`) or by
+  an admin any time (`/admin/toggleresign`); resets to off on re-init, same as
+  `test_mode`/`skip_delays`.
 - **Dialog text** shown to players is built exclusively in the `dlg_*` methods. Game
   logic must never depend on dialog strings.
 - **Bid ordering is rank-based, following the points table.** `bid_rank()` (inside

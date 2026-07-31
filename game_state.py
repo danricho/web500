@@ -278,6 +278,14 @@ class GameStateMachine:
     self.skip_delays = False # MAKES self.delay() A NO-OP, SO A HAND PLAYS OUT INSTANTLY
     self.debug_mode = True   # GATES self.debug() - THE STATE-TRANSITION TRACE
 
+    # TABLE SETTING: LETS THE WINNING LONE BIDDER RESIGN INSTEAD OF CONTRACTING (NO
+    # PENALTY, RE-DEAL AS IF NO-ONE HAD BID) DURING THEIR bid.passed ==
+    # "WINNER_INCREASE_OPTION" WINDOW - SEE gui_resign_bid(). ANY PLAYER MAY TOGGLE IT
+    # WHILE WAITING FOR PLAYERS (gui_toggle_allow_resign()); AN ADMIN MAY ALSO TOGGLE IT
+    # MID-GAME VIA /admin/toggleresign. RESETS TO OFF ON RE-INIT LIKE test_mode/
+    # skip_delays ABOVE - IT'S RE-CHOSEN AT THE LOBBY STAGE EACH GAME, NOT PERMANENT.
+    self.allow_resign = False
+
     self.log(f"** Game (Re)initialised. **", color=applog.RED)
     self.log(f"Starting in S{self.state} '{self.state_name()}'", color=applog.RED)
     self.dlg_waiting_for_players()
@@ -403,6 +411,7 @@ class GameStateMachine:
       self.table_stale = data.get("table_stale", False)
       self.test_mode = data.get("test_mode", False)
       self.skip_delays = data.get("skip_delays", False)
+      self.allow_resign = data.get("allow_resign", False)
       # PUBLIC EVENT LOGS + PLAYER BOTS - .get DEFAULTS KEEP OLDER SAVES LOADABLE WITHOUT
       # A SAVE_VERSION BUMP (SAME TOLERANT PATTERN AS THE JOKER FIELDS ABOVE). AN OLD
       # SAVE JUST RESUMES WITH EMPTY LOGS / NO BOTS
@@ -553,6 +562,9 @@ class GameStateMachine:
         self.debug(f"{self.state_name()} : PLAYER HAS FOCUS -> TRANSITION TO S2")
         self.move_state(2)
         self.dlg_waiting_for_bid(self.players[self.player_focus].name)
+        if self.allow_resign:
+          self.sio_toast("Single Bid Exit is ON for this hand - a winning lone bidder may resign instead of contracting.",
+                         kind="info", category="GAME MANAGEMENT")
         return
       else:        
         self.debug(f"{self.state_name()} : NO PLAYER HAS FOCUS -> NO TRANSITION")
@@ -793,6 +805,8 @@ class GameStateMachine:
     self.dialog(f"{name} passed. {next_name}'s bid.")
   def dlg_bid_next_bidder(self, name, tricks, suit, next_name):
     self.dialog(f"{name} bid {tricks} {SUIT_STR[suit]}. {next_name}'s bid.")
+  def dlg_resigned(self, name):
+    self.dialog(f"{name} resigned the bid. Re-deal.")
   def dlg_bid_increase_option(self, winner_name, passer_name=None):
     if passer_name:
       self.dialog(f"{passer_name} passed. {winner_name} won the bidding... Increase bid?")
@@ -1107,8 +1121,47 @@ class GameStateMachine:
               self.sio_push()
               return
           
-          return      
+          return
       return
+
+  # STATE 2 FUNCTION CALLED BY GUI - LETS THE WINNING LONE BIDDER RESIGN INSTEAD OF
+  # CONTRACTING, DURING THEIR OWN bid.passed == "WINNER_INCREASE_OPTION" WINDOW (SAME
+  # MOMENT gui_bid() OFFERS THEM PASS-TO-DECLINE OR A HIGHER BID). ONLY LEGAL WHEN
+  # self.allow_resign IS ON FOR THIS TABLE. NO PENALTY: THIS IS THE EXACT SAME
+  # TRANSITION AS state_trans's "ALL FOUR PLAYERS PASSED" RE-DEAL BRANCH (RESET EVERY
+  # BID, QUEUE auto_deal, MOVE TO S1) - RESIGNING IS DELIBERATELY INDISTINGUISHABLE
+  # FROM NO-ONE HAVING BID AT ALL, INCLUDING FOR THE PLAYER BOTS' PUBLIC RECORD (THE
+  # HAND'S bid_history IS WIPED BY auto_deal LIKE ANY OTHER RE-DEAL).
+  def gui_resign_bid(self, name):
+    if self.state_name() != "TAKING BIDS" or self.player_focus is None:
+      return
+    if not self.allow_resign:
+      self.log(f"{'gui_resign_bid'.ljust(12)}: Resign attempted from {name} but this table doesn't allow it.")
+      return
+    player = self.players[self.player_focus]
+    if not same_name(player.name, name) or player.bid.passed != "WINNER_INCREASE_OPTION":
+      self.log(f"{'gui_resign_bid'.ljust(12)}: Attempted resign from {name} outside their increase-option window.")
+      return
+    self.dlg_resigned(name)
+    self.player_focus = None
+    for player_i in self.players:
+      player_i.bid = dd({"suit": None, "tricks": None, "won": None, "passed": False})
+    schedule_t.jobqueue.put(self.auto_deal)
+    self.move_state(1)
+
+  # TABLE SETTING TOGGLE - ANY LOGGED-IN PLAYER MAY FLIP IT WHILE WAITING FOR PLAYERS
+  # (THE SEATING/LOBBY STAGE); AN ADMIN CAN ALSO FLIP IT MID-GAME VIA
+  # /admin/toggleresign IN main.py (WHICH SETS self.allow_resign DIRECTLY, UNGATED -
+  # SAME PATTERN AS /admin/test AND /admin/skipdelays).
+  def gui_toggle_allow_resign(self, name):
+    if self.state_name() != "WAITING FOR PLAYERS":
+      self.log(f"{'gui_toggle_allow_resign'.ljust(12)}: Attempted from {name} outside the seating stage.")
+      return
+    self.allow_resign = not self.allow_resign
+    self.log(f"{'gui_toggle_allow_resign'.ljust(12)}: {name} {'enabled' if self.allow_resign else 'disabled'} Single Bid Exit.")
+    self.sio_toast(f"Single Bid Exit {'enabled' if self.allow_resign else 'disabled'} by {name}",
+                   kind="info", category="GAME MANAGEMENT")
+    self.sio_push()
 
   # STATE 3 FUNCTION CALLED BY GUI
   def gui_discard(self, name, discard):

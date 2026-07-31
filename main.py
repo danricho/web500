@@ -155,6 +155,7 @@ def _table_summaries():
       "already_seated": any(same_name(user, p.name) for p in t.players),
       "test_mode": t.test_mode,
       "skip_delays": t.skip_delays,
+      "allow_resign": t.allow_resign,
     }
     for t in sorted(tables.values(), key=lambda t: _table_sort_key(t.name))
   ]
@@ -455,6 +456,16 @@ def index(path):
     target.sio_toast(f"Skip delays {'enabled' if target.skip_delays else 'disabled'} by {current_user()}",
                    kind="warning" if target.skip_delays else "info", category="GAME MANAGEMENT")
     return "ok"
+  if path == "admin/toggleresign":
+    target = admin_target_table()
+    if target is None:
+      return "no table selected", 400
+    applog.scoped("FLASK", f"Request to toggle Single Bid Exit (by {current_user()})", color=applog.RED)
+    target.allow_resign = not target.allow_resign
+    target.sio_push()
+    target.sio_toast(f"Single Bid Exit {'enabled' if target.allow_resign else 'disabled'} by {current_user()} (admin)",
+                   kind="warning", category="GAME MANAGEMENT")
+    return "ok"
 
   if path == "admin/uptime":
     return jsonify({"version": VERSION,
@@ -610,6 +621,26 @@ def handle_discard_submit(data):
   if target is None:
     return
   target.gui_discard(current_user(), data['discard'])
+  target.autosave()
+
+@socketio.on('resign_bid')
+def handle_resign_bid(data):
+  if not current_user():
+    return
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_resign_bid(current_user())
+  target.autosave()
+
+@socketio.on('toggle_allow_resign')
+def handle_toggle_allow_resign(data):
+  if not current_user():
+    return
+  target = _socket_table()
+  if target is None:
+    return
+  target.gui_toggle_allow_resign(current_user())
   target.autosave()
 
 @socketio.on('play_card')

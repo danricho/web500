@@ -94,12 +94,16 @@ function updateAdminModeLabels() {
       ? {
           test_mode: lastPushData.test_mode,
           skip_delays: lastPushData.skip_delays,
+          allow_resign: lastPushData.allow_resign,
         }
       : adminTablesData[selected];
   if (!info) return; // nothing known yet for that table - leave the label as-is
   $("#toggle-test").text("TEST MODE: " + (info.test_mode ? "ON" : "OFF"));
   $("#toggle-skip-delays").text(
     "SKIP DELAYS: " + (info.skip_delays ? "ON" : "OFF"),
+  );
+  $("#toggle-allow-resign").text(
+    "SINGLE BID EXIT: " + (info.allow_resign ? "ON" : "OFF"),
   );
 }
 // RE-FETCHES /api/tables, REBUILDS #admin-table-select AND adminTablesData, THEN CALLS
@@ -428,6 +432,7 @@ function updateComponentVisibility(connected, gameState, meFocus, amSeated) {
   );
   $("#toggle-test").toggle(connected);
   $("#toggle-skip-delays").toggle(connected);
+  $("#toggle-allow-resign").toggle(connected);
   $("#save-checkpoint").toggle(connected);
   $("#load-checkpoint").toggle(connected);
   $("#clear-checkpoint").toggle(connected);
@@ -685,6 +690,23 @@ function processGameStateData(data) {
     gameState,
     idxMe == data.player_focus,
     amSeated,
+  );
+
+  // RESIGN (WINNING LONE BIDDER, "SINGLE BID EXIT" TABLE SETTING ON): SAME MOMENT AS
+  // THE BIDDING BOX OFFERING PASS-TO-DECLINE/INCREASE - SEE gui_bid()/gui_resign_bid()
+  // IN game_state.py. NO PENALTY, RE-DEAL, SAME AS IF NO-ONE HAD BID.
+  var myBidPassed = amSeated ? data.players[idxMe].bid.passed : false;
+  $("#resign-pane").toggle(
+    gameState == "TAKING BIDS" &&
+      idxMe == data.player_focus &&
+      myBidPassed == "WINNER_INCREASE_OPTION" &&
+      !!data.allow_resign,
+  );
+
+  // LOBBY-SIDE "SINGLE BID EXIT" LABEL - THE BUTTON ITSELF IS ALWAYS VISIBLE WHENEVER
+  // #choose-seat-div IS (I.E. WAITING FOR PLAYERS), NO SEPARATE TOGGLE NEEDED HERE
+  $("#lobby-toggle-allow-resign").text(
+    "SINGLE BID EXIT: " + (data.allow_resign ? "ON" : "OFF"),
   );
 
   // MISÈRE WATERMARK ON THE TABLE WHILE A MISÈRE CONTRACT IS BEING PLAYED
@@ -1607,6 +1629,22 @@ $(document).ready(function () {
   $("#add-bots").click(function () {
     $(this).prop("disabled", true); // debounce: seating is paced server-side (~1s/bot)
     socket.emit("add_bots", {});
+  });
+
+  // TABLE SETTING - ANY LOGGED-IN VIEWER MAY FLIP IT WHILE WAITING FOR PLAYERS (SERVER
+  // RE-CHECKS THE STAGE IN gui_toggle_allow_resign() REGARDLESS). NO CONFIRM NEEDED -
+  // FREELY REVERSIBLE UP UNTIL DEALING STARTS.
+  $("#lobby-toggle-allow-resign").click(function () {
+    socket.emit("toggle_allow_resign", {});
+  });
+
+  // RESIGN THE WINNING BID (SEE #resign-pane's VISIBILITY CONDITIONS ABOVE) - TWO-STEP
+  // CONFIRM SINCE IT THROWS AWAY THIS HAND'S BIDDING FOR EVERYONE, SAME AS OTHER
+  // CONSEQUENTIAL BUTTONS (confirmThen()).
+  $(".resign-btn").click(function () {
+    confirmThen(this, function () {
+      socket.emit("resign_bid", {});
+    });
   });
 
   $("#bidding-box button").click(function () {
