@@ -1149,6 +1149,13 @@ class GameStateMachine:
       self.log(f"{'gui_resign_bid'.ljust(12)}: Resign attempted from {name} but their bid ({player.bid.tricks} tricks) is above the six-trick minimum.")
       return
     self.dlg_resigned(name)
+    # A TOAST TOO, NOT JUST THE DIALOG RIBBON - A RESIGN IS A DELIBERATE, RARER CHOICE
+    # (UNLIKE THE ORDINARY "EVERYONE HAPPENED TO PASS" REDEAL) AND EASY TO MISS OTHERWISE,
+    # ESPECIALLY FOR THE OTHER THREE PLAYERS WHO WEREN'T THE ONE ACTING. delay(3) MATCHES
+    # THE SAME PACING THE PLAIN ALL-PASSED REDEAL USES (SEE gui_bid's dlg_passed_no_bids_redeal
+    # PATH) SO THERE'S TIME TO ACTUALLY READ IT BEFORE THE NEXT DEAL'S CARDS START MOVING.
+    self.sio_toast(f"{name} resigned the bid - re-dealing...", kind="warning", category="GAME MANAGEMENT")
+    self.delay(3)
     self.player_focus = None
     for player_i in self.players:
       player_i.bid = dd({"suit": None, "tricks": None, "won": None, "passed": False})
