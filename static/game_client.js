@@ -694,12 +694,16 @@ function processGameStateData(data) {
 
   // RESIGN (WINNING LONE BIDDER, "SINGLE BID EXIT" TABLE SETTING ON): SAME MOMENT AS
   // THE BIDDING BOX OFFERING PASS-TO-DECLINE/INCREASE - SEE gui_bid()/gui_resign_bid()
-  // IN game_state.py. NO PENALTY, RE-DEAL, SAME AS IF NO-ONE HAD BID.
+  // IN game_state.py. NO PENALTY, RE-DEAL, SAME AS IF NO-ONE HAD BID. ONLY OFFERED ON
+  // THE CHEAPEST BID (SIX, ANY SUIT) - gui_resign_bid() REJECTS ANYTHING HIGHER SERVER-
+  // SIDE TOO, THIS JUST MATCHES THE BUTTON'S VISIBILITY TO WHAT WOULD ACTUALLY WORK.
   var myBidPassed = amSeated ? data.players[idxMe].bid.passed : false;
+  var myBidTricks = amSeated ? data.players[idxMe].bid.tricks : null;
   $("#resign-pane").toggle(
     gameState == "TAKING BIDS" &&
       idxMe == data.player_focus &&
       myBidPassed == "WINNER_INCREASE_OPTION" &&
+      myBidTricks == 6 &&
       !!data.allow_resign,
   );
 

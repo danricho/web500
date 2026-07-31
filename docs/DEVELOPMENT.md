@@ -229,7 +229,11 @@ section above. Key mechanics for anyone working on the code:
   these flags, never off dialog text. During that same `"WINNER_INCREASE_OPTION"` window,
   if the table's `allow_resign` setting ("Single Bid Exit") is on, the bidder may instead
   call `gui_resign_bid()` — no penalty, straight re-deal (resets every player's bid and
-  re-queues `auto_deal`, identical to the "all four passed" path). `allow_resign` itself
+  re-queues `auto_deal`, identical to the "all four passed" path). Only allowed on the
+  cheapest bid (six tricks, any suit) — a higher bid is a deliberate bigger commitment and
+  doesn't get a free get-out-of-jail card, regardless of whether it actually outbid
+  another player's real bid or was just a high opening bid.
+  `allow_resign` itself
   is toggled by any player while WAITING FOR PLAYERS (`gui_toggle_allow_resign()`) or by
   an admin any time (`/admin/toggleresign`); resets to off on re-init, same as
   `test_mode`/`skip_delays`.

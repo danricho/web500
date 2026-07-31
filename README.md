@@ -77,8 +77,9 @@ bidder gets one chance to increase their own bid before the contract locks. A
 toggleable bid-value reference table (including the slam rule) is available while
 bidding and from the scoreboard. An optional per-table "Single Bid Exit" setting
 (off by default, toggleable by any player from the seating screen or by an admin
-mid-game) lets that same lone bidder resign instead of increasing — no penalty,
-straight re-deal, as if no-one had bid.
+mid-game) lets that same lone bidder resign instead of increasing — but only if
+their bid is still the cheapest (six tricks, any suit); no penalty, straight
+re-deal, as if no-one had bid.
 
 </details>
 

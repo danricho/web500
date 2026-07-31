@@ -1142,6 +1142,12 @@ class GameStateMachine:
     if not same_name(player.name, name) or player.bid.passed != "WINNER_INCREASE_OPTION":
       self.log(f"{'gui_resign_bid'.ljust(12)}: Attempted resign from {name} outside their increase-option window.")
       return
+    if player.bid.tricks != 6: # ONLY THE CHEAPEST BID (SIX, ANY SUIT) MAY BE RESIGNED - A
+      # HIGHER BID (INCLUDING MISÈRE, ALWAYS TRICKS 10) IS A DELIBERATE BIGGER COMMITMENT,
+      # SO IT DOESN'T GET A FREE GET-OUT-OF-JAIL CARD, REGARDLESS OF WHETHER IT ACTUALLY
+      # OUTBID ANOTHER PLAYER'S REAL BID ALONG THE WAY OR WAS JUST A HIGH OPENING BID
+      self.log(f"{'gui_resign_bid'.ljust(12)}: Resign attempted from {name} but their bid ({player.bid.tricks} tricks) is above the six-trick minimum.")
+      return
     self.dlg_resigned(name)
     self.player_focus = None
     for player_i in self.players:
