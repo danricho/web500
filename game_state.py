@@ -17,11 +17,25 @@ import applog
 import bots # BOT PLAYERS (INCL. THE ADMIN TEST-MODE BOT) LIVE OUTSIDE THE GAME RULES
 import ntfy # OPTIONAL ntfy PUSH NOTIFICATIONS (DISABLED BY DEFAULT - SEE ntfy.py)
 
-# SINGLE WORKER ON PURPOSE: ITS JOB QUEUE IS WHAT SERIALISES EVERY GAME MUTATION.
-# LONG-RUNNING WORK (auto_deal, auto_points, state_trans) IS QUEUED, NEVER CALLED
-# DIRECTLY, SO TWO PLAYERS' ACTIONS CAN'T INTERLEAVE. KEEP IT AT workers=1.
+# HOUSEKEEPING WORKER + THE `schedule` POLLER. GAME WORK NO LONGER RUNS HERE: EACH
+# TABLE OWNS ITS OWN single-worker ThreadedSchedule (SET BY THE REGISTRY AS
+# t._schedule_t, QUEUED VIA t.queue_job()) SO ONE TABLE'S BLOCKING PACING (BOT THINK
+# TIME, auto_points DIALOG WALKS, COUNTDOWNS) CAN'T STALL ANY OTHER TABLE. THIS
+# SHARED INSTANCE ONLY RUNS THE ONCE-A-SECOND poll_all_tables FAN-OUT (WHICH ITSELF
+# JUST ENQUEUES ONTO EACH TABLE'S OWN QUEUE) AND reap_empty_tables, AND CARRIES THE
+# PROCESS-WIDE on_error HOOK (main.py) THAT EVERY PER-TABLE WORKER DELEGATES TO.
+# WITHIN A TABLE, workers=1 IS STILL LOAD-BEARING: THAT TABLE'S QUEUE SERIALISES ITS
+# auto_deal/auto_points/state_trans/bot WORK EXACTLY AS THE OLD SHARED WORKER DID.
 schedule_t = threaded_schedule.ThreadedSchedule(workers=1, verbose=False)
 schedule_t.check_for_due_thread()
+
+# ONE PER TABLE (SEE THE MODULE COMMENT ABOVE). ERRORS DELEGATE TO THE SHARED
+# schedule_t.on_error AT CALL TIME - main.py WIRES THAT HOOK AFTER THE BOOT-TIME
+# load_tables_from_disk() HAS ALREADY CREATED WORKERS, SO IT MUST BE READ LATE.
+def _new_table_worker():
+  ts = threaded_schedule.ThreadedSchedule(workers=1, verbose=False)
+  ts.on_error = lambda job_name, tb: schedule_t.on_error and schedule_t.on_error(job_name, tb)
+  return ts
 
 games = [] # FINISHED GAMES THIS PROCESS LIFETIME - IN MEMORY ONLY, SERVED BY /api/last-game
 
@@ -82,6 +96,7 @@ def create_table(socketio_init):
     t = GameStateMachine(name, socketio_init=socketio_init)
     t.autosave_path = table_autosave_path(name)
     t.checkpoint_path = table_checkpoint_path(name)
+    t._schedule_t = _new_table_worker() # UNDERSCORE = TRANSIENT: EXCLUDED FROM to_dict()
     tables[name] = t
   return t
 
@@ -114,6 +129,7 @@ def load_tables_from_disk(socketio_init):
     t = GameStateMachine(entry, socketio_init=socketio_init)
     t.autosave_path = autosave_path
     t.checkpoint_path = table_checkpoint_path(entry)
+    t._schedule_t = _new_table_worker() # BEFORE restore_state - IT RE-QUEUES PENDING WORK
     if t.restore_state(autosave_path):
       restored_any = True
     tables[entry] = t
@@ -123,14 +139,15 @@ def load_tables_from_disk(socketio_init):
 
   return restored_any
 
-# ONCE-A-SECOND FAN-OUT (QUEUED FROM main.py): RE-DERIVES THE TARGET LIST FROM THE
-# LIVE REGISTRY EVERY TICK, SO TABLES CREATED/REMOVED AT RUNTIME ARE PICKED UP
-# WITHOUT RE-REGISTERING JOBS. EACH TABLE'S OWN KEEP-ALIVE/IDLE-NUDGE RUNS ON THE
-# SHARED WORKER, SAME AS EVERY OTHER GAME MUTATION.
+# ONCE-A-SECOND FAN-OUT (QUEUED FROM main.py ONTO THE SHARED HOUSEKEEPING WORKER):
+# RE-DERIVES THE TARGET LIST FROM THE LIVE REGISTRY EVERY TICK, SO TABLES
+# CREATED/REMOVED AT RUNTIME ARE PICKED UP WITHOUT RE-REGISTERING JOBS. EACH TABLE'S
+# OWN KEEP-ALIVE/IDLE-NUDGE GOES ONTO THAT TABLE'S OWN WORKER (SAME QUEUE AS ITS GAME
+# MUTATIONS), SO A TABLE BUSY SLEEPING ONLY DELAYS ITS OWN POLLS, NEVER ANOTHER'S.
 def poll_all_tables():
   for t in list(tables.values()):
-    schedule_t.jobqueue.put(t.is_push_needed)
-    schedule_t.jobqueue.put(t.check_focus_idle)
+    t.queue_job(t.is_push_needed)
+    t.queue_job(t.check_focus_idle)
   schedule_t.jobqueue.put(reap_empty_tables)
 
 # TEARS DOWN A TABLE: TELLS ANY CONNECTED CLIENT VIA A DEDICATED table_closed EVENT
@@ -154,6 +171,10 @@ def delete_table(name, reason):
     t.socketio.emit('table_closed', data={"reason": f"'{name}' has been closed ({reason})"}, room=name)
   del tables[name]
   t._deleted = True
+  # STOP THE TABLE'S OWN WORKER THREAD (EXITS WITHIN ITS 1s QUEUE TIMEOUT) - WITHOUT
+  # THIS EVERY REAPED/DELETED TABLE WOULD LEAK A LIVE THREAD FOR THE PROCESS LIFETIME
+  if getattr(t, "_schedule_t", None):
+    t._schedule_t.stop()
   shutil.rmtree(table_dir(name), ignore_errors=True)
   t.log(f"Removed ({reason})")
   return True
@@ -435,12 +456,12 @@ class GameStateMachine:
 
     # RE-QUEUE / REDO WORK THE OLD PROCESS HAD PENDING - OTHER GUI-DRIVEN STATES NEED NOTHING
     if self.state_name() == "DEALING":
-      schedule_t.jobqueue.put(self.auto_deal) # re-deal from scratch (hand hadn't started)
+      self.queue_job(self.auto_deal) # re-deal from scratch (hand hadn't started)
     elif self.state_name() == "AWARD POINTS":
       if len(list(filter(lambda player: player.bid.tricks != None, self.players))):
-        schedule_t.jobqueue.put(self.auto_points) # bids not yet cleared -> scoring never ran
+        self.queue_job(self.auto_points) # bids not yet cleared -> scoring never ran
       else:
-        schedule_t.jobqueue.put(self.state_trans) # scoring done -> continue to next hand / game end
+        self.queue_job(self.state_trans) # scoring done -> continue to next hand / game end
     elif self.state_name() == "AWARD KITTY":
       # THE S2->S3 AUTOSAVE FIRES IN move_state(3) BEFORE state_trans AWARDS THE KITTY /
       # SETS TRUMPS / SETS FOCUS - REDO THAT SETUP DETERMINISTICALLY FROM THE BIDS
@@ -456,7 +477,7 @@ class GameStateMachine:
             self.player_focus = player_index
             self.dlg_trumps_now_discard(self.trumps, player.name)
           elif len(player.kitty.cards) == 0: # discard already submitted - move the game on
-            schedule_t.jobqueue.put(self.state_trans)
+            self.queue_job(self.state_trans)
           else: # kitty held, discard pending (manual checkpoint) - ensure the contractor is focused
             self.player_focus = player_index
           break
@@ -465,6 +486,14 @@ class GameStateMachine:
 
     self.sio_push()
     return True
+  # ENQUEUES A JOB ON THIS TABLE'S OWN single-worker QUEUE - THE PER-TABLE
+  # SERIALISATION POINT FOR ALL auto_*/state_trans/bot WORK (SEE THE MODULE COMMENT ON
+  # schedule_t). _schedule_t IS SET BY THE TABLE REGISTRY POST-CONSTRUCTION (SAME
+  # PATTERN AS autosave_path) AND SURVIVES THE IN-PLACE __init__ RESETS; AN INSTANCE
+  # CONSTRUCTED OUTSIDE THE REGISTRY (HEADLESS/LEAGUE TESTING) FALLS BACK TO THE
+  # SHARED HOUSEKEEPING WORKER, PRESERVING THE OLD SINGLE-QUEUE BEHAVIOUR THERE.
+  def queue_job(self, job):
+    (getattr(self, "_schedule_t", None) or schedule_t).jobqueue.put(job)
   def delay(self, seconds):
     if not self.skip_delays:
       sleep(seconds)
@@ -549,7 +578,7 @@ class GameStateMachine:
       no_empty_seats = not len(list(filter(lambda player: player.name == None, self.players)))
       if no_empty_seats: # ALL THE PLAYERS ARE HERE - next state
         self.debug(f"{self.state_name()} : NO EMPTY SEATS -> TRANSITION TO S1")
-        schedule_t.jobqueue.put(self.auto_deal)
+        self.queue_job(self.auto_deal)
         self.move_state(1)
         return
       else:
@@ -603,7 +632,7 @@ class GameStateMachine:
         self.debug(f"{self.state_name()} : NO-ONE BID -> TRANSITION TO S1")
         for player_i in self.players:
           player_i.bid = {"suit": None, "tricks": None, "won": None, "passed": False}                    
-        schedule_t.jobqueue.put(self.auto_deal)
+        self.queue_job(self.auto_deal)
         self.move_state(1)
         return
       
@@ -643,7 +672,7 @@ class GameStateMachine:
         
         self.player_focus = None
         self.move_state(5)
-        schedule_t.jobqueue.put(self.auto_points)        
+        self.queue_job(self.auto_points)        
         return
     
     # CHECK FOR S5 -> S6 or S5 -> S1
@@ -655,7 +684,7 @@ class GameStateMachine:
         self.countdown(self.NEW_HAND_COUNTDOWN_S, self.dlg_new_hand_soon)
 
         self.move_state(1)
-        schedule_t.jobqueue.put(self.auto_deal)
+        self.queue_job(self.auto_deal)
 
       else: # GAME OVER
 
@@ -692,7 +721,7 @@ class GameStateMachine:
     # bots.bot_check ROUTES ADMIN TEST-MODE BOTS vs SEATED PLAYER BOTS; THE GUARD SKIPS
     # THE QUEUE CHURN ENTIRELY WHEN NO BOTS EXIST (THE COMMON HUMANS-ONLY GAME)
     if self.test_mode or self.player_bots:
-      schedule_t.jobqueue.put(lambda: bots.bot_check(self))
+      self.queue_job(lambda: bots.bot_check(self))
 
   # OCCASIONAL SERVER-SENT NOTICE (CHECKPOINT SAVED, RESTART IMMINENT, ...) SHOWN AS A
   # CLIENT TOAST. DELIBERATELY A DEDICATED EVENT, NOT PART OF THE game_state PUSH: THE
@@ -724,12 +753,12 @@ class GameStateMachine:
     # OWN: A SEAT CAN LEGITIMATELY REGAIN FOCUS SEVERAL TIMES IN THE SAME STATE
     # (ANOTHER BIDDING ROUND ON A REMAINING BIDDER; ONE TURN PER TRICK DURING PLAY).
     # NORMALLY EVERY INTERVENING SEAT'S TURN PRODUCES A DIFFERENT KEY AND RE-ARMS THE
-    # TIMER, BUT THE SHARED MULTI-TABLE WORKER (ONE THREAD SERIALISING EVERY TABLE'S
-    # WORK, SEE poll_all_tables) CAN NOW LEAVE THIS ONCE-A-SECOND POLL BACKLOGGED LONG
-    # ENOUGH TO SKIP RIGHT OVER AN ENTIRE INTERVENING VISIT WHEN OTHER TABLES ARE BUSY
-    # - LANDING BACK ON A KEY THAT COINCIDENTALLY MATCHES ONE FROM SEVERAL TURNS AGO,
-    # INHERITING ITS STALE _focus_since AND NUDGING ALMOST INSTANTLY. THE ORDINAL BELOW
-    # MAKES EVERY VISIT UNIQUE REGARDLESS OF HOW MANY POLLS GOT SKIPPED.
+    # TIMER, BUT THIS TABLE'S OWN single WORKER (WHICH ALSO RUNS ITS BLOCKING PACING -
+    # BOT THINK SLEEPS, auto_points DIALOG WALKS) CAN LEAVE THIS ONCE-A-SECOND POLL
+    # BACKLOGGED LONG ENOUGH TO SKIP RIGHT OVER AN ENTIRE INTERVENING VISIT - LANDING
+    # BACK ON A KEY THAT COINCIDENTALLY MATCHES ONE FROM SEVERAL TURNS AGO, INHERITING
+    # ITS STALE _focus_since AND NUDGING ALMOST INSTANTLY. THE ORDINAL BELOW MAKES
+    # EVERY VISIT UNIQUE REGARDLESS OF HOW MANY POLLS GOT SKIPPED.
     if state_name == "TAKING BIDS":
       turn_ordinal = len(self.bid_history)
     elif state_name == "PLAY HAND":
@@ -907,7 +936,7 @@ class GameStateMachine:
         ntfy.send("web500", f"{name} sat down at Web500 {self.name}")
       self.player_focus = None
       self.sio_push()
-      schedule_t.jobqueue.put(self.state_trans)
+      self.queue_job(self.state_trans)
 
   # STATE 1 FUNCTION TRIGGERED BY TRANSITION
   def auto_deal(self):
@@ -981,7 +1010,7 @@ class GameStateMachine:
       self.player_focus = (self.dealer + 1) % 4 # BIDDING OPENS LEFT OF THE DEALER
 
       # TRANSITION TO NEXT STATE
-      schedule_t.jobqueue.put(self.state_trans)
+      self.queue_job(self.state_trans)
   
   # STATE 2 FUNCTION CALLED BY GUI
   def gui_bid(self, name, bid):
@@ -1049,7 +1078,7 @@ class GameStateMachine:
               self.player_focus = None
               self.dlg_passed_no_bids_redeal(name)
               self.delay(3)
-              schedule_t.jobqueue.put(self.state_trans)
+              self.queue_job(self.state_trans)
 
             elif len(active_bidders()) == 1 and current_highest_bidder_score() > 0: # BIDDING WON - SETUP FOR OPTIONAL BID INCREASE
               winner = active_bidders()[0]
@@ -1072,7 +1101,7 @@ class GameStateMachine:
             elif len(active_bidders()) == 0 and current_highest_bidder_score() > 0: # FINISHED: WINNER DIDN'T INCREASE BID (0 bidders)
               player.bid.passed = "WINNER"
               self.dlg_bid_not_increased(player.name)
-              schedule_t.jobqueue.put(self.state_trans)
+              self.queue_job(self.state_trans)
               
           # NOT A PASS
           else:
@@ -1106,7 +1135,7 @@ class GameStateMachine:
                 if player.bid.passed == "WINNER_INCREASE_OPTION": # FINISHED: WINNER DID INCREASE BID
                   player.bid.passed = "WINNER"
                   self.dlg_bid_increased(player.name, player.bid.tricks, player.bid.suit)
-                  schedule_t.jobqueue.put(self.state_trans)
+                  self.queue_job(self.state_trans)
                   return
                 else:
                   player.bid.passed = "WINNER_INCREASE_OPTION" # FINISHED: FIRST BID WINNER... GIVE INCREASE OPTION
@@ -1159,7 +1188,7 @@ class GameStateMachine:
     self.player_focus = None
     for player_i in self.players:
       player_i.bid = dd({"suit": None, "tricks": None, "won": None, "passed": False})
-    schedule_t.jobqueue.put(self.auto_deal)
+    self.queue_job(self.auto_deal)
     self.move_state(1)
 
   # TABLE SETTING TOGGLE - ANY LOGGED-IN PLAYER MAY FLIP IT WHILE WAITING FOR PLAYERS
@@ -1200,7 +1229,7 @@ class GameStateMachine:
             
             self.player_focus = player_index
 
-            schedule_t.jobqueue.put(self.state_trans)
+            self.queue_job(self.state_trans)
 
   # SUITS STILL AVAILABLE FOR A JOKER-LEAD NOMINATION (SUITS 1-4 NOT YET LED THIS HAND)
   def joker_lead_suits(self):
@@ -1430,7 +1459,7 @@ class GameStateMachine:
               for player_data in self.players:
                 player_data.table = None
               self.sio_push() # push to clients
-              schedule_t.jobqueue.put(self.state_trans)
+              self.queue_job(self.state_trans)
             elif self.hand_cards_status() == 'between tricks': # between tricks. Hand still going.
               self.table_stale = True # WON TRICK LINGERS UNTIL THE WINNER LEADS THE NEXT CARD
               self.player_focus = winner_index
@@ -1440,7 +1469,7 @@ class GameStateMachine:
               for player_data in self.players:
                 player_data.table = None
               self.sio_push() # push to clients
-              schedule_t.jobqueue.put(self.state_trans)
+              self.queue_job(self.state_trans)
 
   # STATE 4 FUNCTION CALLED BY GUI - TWO NOMINATION FLAVOURS (NO TRUMPS / MISÈRE):
   # 1. PRE-LEAD: THE CONTRACTOR (HOLDING THE JOKER) DECLARES ITS SUIT FOR THE WHOLE HAND,
@@ -1578,5 +1607,5 @@ class GameStateMachine:
 
     self.autosave() # scores applied + bids cleared: a restore from here re-queues state_trans, not auto_points
 
-    schedule_t.jobqueue.put(self.state_trans)
+    self.queue_job(self.state_trans)
 

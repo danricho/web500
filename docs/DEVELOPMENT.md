@@ -26,6 +26,8 @@ dev_script_common.py  shared plumbing for the three dev_* table scripts above (r
                       path + admin HTTP session with auth.json-else-prompt creds)
 playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting
 threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule` poller;
+                      each table owns one instance (its serialising game-work queue,
+                      via `game.queue_job()`) plus one shared housekeeping instance;
                       a failing job logs its traceback and fires the on_error hook
                       (wired to a SERVER ERROR toast); the worker always survives
 dotdict.py            dict subclass with attribute access (players/teams/bids)
@@ -128,9 +130,13 @@ redirects itself to `/`. `delete_table()` is shared with the admin-only
 `/admin/delete_table` route (manual removal of any table, regardless of state — see
 "Admin endpoints" below).
 
-The single shared `ThreadedSchedule` worker (see "State machine mechanics" below)
-serialises mutations across **every** table, deliberately not split per-table — simple
-starting point, revisit only if one table's queued work ever visibly delays another's.
+Each table owns its own single-worker `ThreadedSchedule` (see "State machine mechanics"
+below), created by the registry alongside its save paths, so one table's blocking
+pacing (bot think time, score-walk dialogs, countdowns) never delays another table's
+work. A shared housekeeping `ThreadedSchedule` remains for the once-a-second
+`poll_all_tables` fan-out (which enqueues each table's keep-alive/idle polls onto that
+table's own queue) and empty-table reaping; `delete_table()` stops the departing
+table's worker thread so reaping never leaks threads.
 
 ## Admin endpoints & test mode
 
@@ -261,10 +267,11 @@ section above. Key mechanics for anyone working on the code:
 - **All transitions go through `state_trans()`.** It inspects the current state, decides
   whether the conditions to move on are met, and performs the side effects of the
   transition. Don't move state anywhere else.
-- **Single-threaded mutation via a job queue.** Long-running work (`auto_deal`,
-  `auto_points`, `state_trans` itself) is never called directly — it is enqueued on
-  `schedule_t.jobqueue` and executed by the single `ThreadedSchedule` worker thread.
-  That one worker is what serialises all game mutations; keep it that way.
+- **Per-table job queue.** Long-running work (`auto_deal`, `auto_points`, `state_trans`
+  itself) is never called directly — it is enqueued via `game.queue_job()` and executed
+  by that table's own single `ThreadedSchedule` worker thread. Within a table that one
+  worker serialises all its queued game work; keep it single-worker. Tables never share
+  a queue, so one table's pacing can't stall another's.
 - **Pacing goes through `self.delay()`**, not bare `sleep()`, so the `skip_delays` admin
   flag can bypass every pause.
 - **`player_focus`** (0–3 or `None`) is the single "whose turn is it" pointer used across

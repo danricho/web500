@@ -18,7 +18,7 @@ SERVICE_UNIT_NAME = "web-500-web-server.service" # THIS HOST'S SYSTEMD UNIT - SH
 RESTART_COMMAND = f"sudo systemctl restart {SERVICE_UNIT_NAME}"
 RESTART_DELAY_S = 0.5 # LET THE HTTP RESPONSE FLUSH BEFORE THE PROCESS IS KILLED
 
-VERSION = "v.2026.07.22.1" # version definition
+VERSION = "v.2026.08.01.1" # version definition
                 # SINGLE SOURCE OF TRUTH - SHOWN ON THE CLIENT (MODAL CREDITS), LOGGED
                 # AT STARTUP AND SERVED BY /admin/uptime. BUMP ON RELEASE.
 PORT = 4030 # FLASK DEV SERVER ONLY - GUNICORN BINDS ITSELF (-b :4030 IN THE UNIT/README)
@@ -171,10 +171,13 @@ socketio = SocketIO(app, transports=['polling'], logger=False)
 restored_toast_pending = load_tables_from_disk(socketio)
 
 # WORKER-JOB FAILURES: THE FULL TRACEBACK IS ALREADY LOGGED BY threaded_schedule -
-# THIS HOOK ADDITIONALLY SURFACES A TOAST. A FAILING JOB CAN BELONG TO ANY TABLE (OR
-# NONE), SO THIS IS A TRUE UNSCOPED BROADCAST (NO room=) STRAIGHT VIA socketio, NOT
-# THROUGH ANY PARTICULAR TABLE'S sio_toast() - RARE OPS-VISIBILITY SIGNAL, NOT
-# GAMEPLAY, SO EVERYONE SEEING IT IS FINE
+# THIS HOOK ADDITIONALLY SURFACES A TOAST. EVERY PER-TABLE WORKER DELEGATES ITS OWN
+# on_error TO THIS SHARED HOOK AT CALL TIME (SEE _new_table_worker IN game_state.py),
+# SO WIRING IT HERE - AFTER load_tables_from_disk HAS ALREADY CREATED WORKERS - STILL
+# COVERS THEM ALL. A FAILING JOB CAN BELONG TO ANY TABLE (OR NONE), SO THIS IS A TRUE
+# UNSCOPED BROADCAST (NO room=) STRAIGHT VIA socketio, NOT THROUGH ANY PARTICULAR
+# TABLE'S sio_toast() - RARE OPS-VISIBILITY SIGNAL, NOT GAMEPLAY, SO EVERYONE SEEING
+# IT IS FINE
 schedule_t.on_error = lambda job_name, tb: socketio.emit(
   'toast', data={"text": f"'{job_name}' failed - check the service logs",
                  "kind": "danger", "seconds": 8, "audience": None,
@@ -183,7 +186,8 @@ schedule_t.on_error = lambda job_name, tb: socketio.emit(
 # KEEP-ALIVE / FOCUS-IDLE / EMPTY-TABLE REAP: ONE REGISTRATION FANS OUT TO EVERY
 # TABLE IN THE REGISTRY EACH TICK (poll_all_tables IN game_state.py), SO TABLES
 # CREATED/REMOVED AT RUNTIME ARE PICKED UP WITHOUT RE-REGISTERING JOBS. QUEUED (NOT
-# CALLED) SO IT RUNS ON THE SINGLE WORKER THAT SERIALISES ALL GAME WORK.
+# CALLED) ONTO THE SHARED HOUSEKEEPING WORKER; THE FAN-OUT ITSELF ENQUEUES EACH
+# TABLE'S POLLS ONTO THAT TABLE'S OWN WORKER (t.queue_job).
 schedule.every(1).seconds.do(schedule_t.jobqueue.put, poll_all_tables)
 
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
@@ -419,7 +423,7 @@ def index(path):
         target.sio_toast(f"Checkpoint loaded by {user}", kind="success", seconds=6, category="GAME MANAGEMENT")
       else:
         target.sio_toast(f"Checkpoint load FAILED (requested by {user})", kind="danger", seconds=6, category="GAME MANAGEMENT")
-    schedule_t.jobqueue.put(load_and_toast) # on the worker so it can't interleave with auto jobs
+    target.queue_job(load_and_toast) # on that table's worker so it can't interleave with its auto jobs
     return "ok"
 
   if path == "admin/clearchk":
@@ -441,7 +445,7 @@ def index(path):
     applog.scoped("FLASK", f"Request to toggle test mode automation (by {current_user()})", color=applog.RED)
     target.test_mode = not target.test_mode
     if target.test_mode:
-      schedule_t.jobqueue.put(lambda: bots.dev_random_seat_bots(target))
+      target.queue_job(lambda: bots.dev_random_seat_bots(target))
     target.sio_push() # also queues a dev_random_bot_check if test mode is now on
     target.sio_toast(f"Test mode {'enabled' if target.test_mode else 'disabled'} by {current_user()}",
                    kind="warning" if target.test_mode else "info", category="GAME MANAGEMENT")
@@ -679,11 +683,12 @@ def handle_add_bots(data):
     return
   applog.scoped("MAIN", f"{current_user()} requested bots to fill the empty seats at '{target.name}'", color=applog.RED)
   target.sio_toast(f"{current_user()} is filling the empty seats with bots...", category="PLAYERS")
-  # ON THE WORKER QUEUE (NOT INLINE) BECAUSE SEATING PACES ITSELF WITH game.delay() AND
-  # EACH gui_sit MAY TRIGGER state_trans - SAME SERIALISATION RULE AS ALL GAME MUTATIONS.
+  # ON THE TABLE'S OWN WORKER QUEUE (NOT INLINE) BECAUSE SEATING PACES ITSELF WITH
+  # game.delay() AND EACH gui_sit MAY TRIGGER state_trans - SAME SERIALISATION RULE AS
+  # ALL THAT TABLE'S GAME MUTATIONS.
   # NO EXPLICIT AUTOSAVE HERE: EACH gui_sit AUTOSAVES VIA ITS OWN move_state/state_trans
   # PATH ONCE THE TABLE FILLS, AND A HALF-SEATED LOBBY IS HARMLESS TO LOSE
-  schedule_t.jobqueue.put(lambda: bots.seat_player_bots(target))
+  target.queue_job(lambda: bots.seat_player_bots(target))
 
 if __name__ == '__main__':
 

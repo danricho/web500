@@ -106,7 +106,9 @@ where the bot has least control).
    place plain randomness is allowed — it is not a decision, so the determinism rule
    doesn't apply. A re-fired check with nothing to do (kitty already discarded,
    bidding settled) skips the sleep entirely — it used to sleep first and no-op
-   after, blocking the game's own queued work on the single worker thread
+   after, blocking the table's own queued work on its single worker thread (since
+   2026-08-01 each table has its own worker, so a bot's think-sleep can only ever
+   delay its own table's queue, never another table's)
 
 All planned phases are complete. Future refinement ideas belong here: heuristic
 calibration via longer league runs, personality presets/difficulty levels, smarter
