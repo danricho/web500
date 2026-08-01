@@ -13,6 +13,17 @@ game_state.py         GameStateMachine — all game rules, state and flow (the c
                       also owns the table registry (any number of tables run at once)
 bots.py               bot players: lobby-seatable PlayerBot (view-restricted, per-bot
                       personality) + the predictable random dev test-mode bot
+dev_spawn_bot_tables.py  dev/QA script: spawns N self-playing all-player-bot tables
+                      into the running service for load testing - see "Spawning
+                      all-bot tables" under Admin endpoints below
+dev_clear_empty_tables.py  dev/QA companion: immediately deletes every empty table
+                      (same definition the 300s auto-reaper uses) - tidy-up after
+                      load testing, see the same section
+dev_clear_bot_tables.py  dev/QA companion: deletes every table with NO human seated
+                      (all-bot mid-hand games included; --dry-run to preview) - the
+                      one-shot load-test teardown, same section
+dev_script_common.py  shared plumbing for the three dev_* table scripts above (repo
+                      path + admin HTTP session with auth.json-else-prompt creds)
 playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting
 threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule` poller;
                       a failing job logs its traceback and fires the on_error hook
@@ -160,6 +171,42 @@ selected table is this browser's own) rather than always showing this table's st
 There is no automated test suite. Verification is manual: run the server, enable test
 mode and skip-delays, and watch the coloured logs — every state transition, dialog and
 action is logged.
+
+### Spawning all-bot tables (`dev_spawn_bot_tables.py`)
+
+Player bots can't normally be seated without a seated human (`add_bots` is deliberately
+gated that way), so for load/soak testing — e.g. several bot-heavy tables running at
+once to exercise the per-table workers — `dev_spawn_bot_tables.py` sidesteps the gate:
+
+```bash
+venv/bin/python dev_spawn_bot_tables.py [count] [base_url]
+# defaults: 3 tables, http://localhost:4030
+```
+
+For each table it creates a fresh one via `/api/create_table`, writes a hand-built
+DEALING-state `checkpoint.json` (four random player bots seated, built with the real
+`to_dict()` so the shape always matches `restore_state()`) into `data/tables/<name>/`,
+and triggers `/admin/load?table=<name>` — the restore re-queues `auto_deal` and the
+table plays itself until game over (bots evaporate as usual, the empty table then
+reaps itself). Credentials come from `data/auth.json` when present, otherwise an
+interactive prompt (also on login failure). Must run on the service host — it writes
+into `data/tables/` directly. Same `dev_` naming reasoning as everything else in this
+section: a development/QA tool, not an admin-role concept.
+
+Two teardown companions (both pure HTTP — no local file access needed; both share the
+spawner's credential handling via `dev_script_common.py`):
+
+- `dev_clear_empty_tables.py [base_url]` deletes every **empty** table on demand via
+  `/admin/delete_table`, using the same "empty" definition as the auto-reaper (WAITING
+  FOR PLAYERS, nobody seated) — it never touches a table with anyone seated or a hand
+  in progress. The cautious option: skips live bot games, so use it when bot tables
+  should be left to finish naturally.
+- `dev_clear_bot_tables.py [base_url] [--dry-run]` deletes every table with **no human
+  seated** — every seat either vacant or a bot (`B|`/`D|` name prefix, imported from
+  `bots.py`), mid-hand games included. The one-shot load-test teardown; a table with
+  even one human among bots is always kept. `--dry-run` previews without deleting.
+
+Both print what they removed and what they kept.
 
 ## Server/client contract
 
