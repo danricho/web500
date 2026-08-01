@@ -24,7 +24,9 @@ dev_clear_bot_tables.py  dev/QA companion: deletes every table with NO human sea
                       one-shot load-test teardown, same section
 dev_script_common.py  shared plumbing for the three dev_* table scripts above (repo
                       path + admin HTTP session with auth.json-else-prompt creds)
-playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting
+playing_cards.py      Card / Deck classes, suit & rank constants, trump-aware sorting;
+                      Deck.shuffle(rng) takes the caller's RNG (each table owns one,
+                      optionally random.org-seeded - see "State machine mechanics")
 threaded_schedule.py  ThreadedSchedule — worker thread + job queue + `schedule` poller;
                       each table owns one instance (its serialising game-work queue,
                       via `game.queue_job()`) plus one shared housekeeping instance;
@@ -274,6 +276,19 @@ section above. Key mechanics for anyone working on the code:
   a queue, so one table's pacing can't stall another's.
 - **Pacing goes through `self.delay()`**, not bare `sleep()`, so the `skip_delays` admin
   flag can bypass every pause.
+- **Each table has its own RNG** (`self._rng`, a `random.Random` instance) — the deal
+  shuffle (`deck.shuffle(self._rng)`) and the random first-dealer pick draw from it,
+  never from the `random` module's global state, so tables can't influence each other's
+  streams. It's seeded from system entropy in `__init__` (immediately playable), then a
+  throwaway daemon thread re-seeds it from random.org's atmospheric-noise integers when
+  that service is reachable — best-effort, and the fetch runs off-worker so a slow or
+  unreachable random.org can't stall table creation, boot-time restore or a game-over
+  reset. Re-seeding happens on every `__init__`, so each fresh game gets its own seed.
+  `_rng`/`_seed_source` are underscore-prefixed (transient): never pushed to clients and
+  never saved — a visible or persisted seed would make every future shuffle predictable.
+  The chosen source is logged per table (`[RNG]` tag) and named in the deal's
+  "Shuffled Deck" line. Bot decision randomness is separate and deliberately
+  deterministic — see [Player bots](#player-bots).
 - **`player_focus`** (0–3 or `None`) is the single "whose turn is it" pointer used across
   bidding, discarding and play. `None` means nobody may act.
 - **Teams are seat parity** — seats 0+2 vs 1+3; `teams[i % 2]` maps player to team.

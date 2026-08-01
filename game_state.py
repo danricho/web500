@@ -1,10 +1,11 @@
 from datetime import datetime
 from time import sleep
-from random import randint
 import json
 import os
+import random
 import shutil
 import threading
+import urllib.request
 import uuid
 
 from playing_cards import *
@@ -36,6 +37,23 @@ def _new_table_worker():
   ts = threaded_schedule.ThreadedSchedule(workers=1, verbose=False)
   ts.on_error = lambda job_name, tb: schedule_t.on_error and schedule_t.on_error(job_name, tb)
   return ts
+
+# TRUE-RANDOM TABLE SEEDING (OPTIONAL, BEST-EFFORT): EACH TABLE'S OWN RNG STARTS ON
+# SYSTEM ENTROPY AND IS THEN RE-SEEDED FROM random.org's ATMOSPHERIC-NOISE INTEGERS
+# WHEN REACHABLE - FETCHED OFF-WORKER (SEE __init__), NEVER INLINE, SO A SLOW OR DOWN
+# random.org CAN'T STALL TABLE CREATION, BOOT-TIME RESTORE OR A GAME-OVER RESET.
+# PLAIN-TEXT INTEGER API; TWO 0..1e9 VALUES COMBINED INTO ONE ~60-BIT SEED.
+RANDOM_ORG_SEED_URL = ("https://www.random.org/integers/"
+                       "?num=2&min=0&max=1000000000&col=1&base=10&format=plain&rnd=new")
+def _fetch_random_org_seed(timeout_s=4):
+  try:
+    req = urllib.request.Request(RANDOM_ORG_SEED_URL,
+                                 headers={"User-Agent": "web500-table-seeder"})
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+      a, b = (int(part) for part in resp.read().decode("ascii").split())
+    return a * (10**9 + 1) + b
+  except Exception:
+    return None
 
 games = [] # FINISHED GAMES THIS PROCESS LIFETIME - IN MEMORY ONLY, SERVED BY /api/last-game
 
@@ -239,6 +257,20 @@ class GameStateMachine:
     # __init__ ALSO CLEARS EVERY SEAT, SO A FRESH TABLE, AN ADMIN REINIT, AND A GAME-OVER
     # AUTO-RESET ALL CORRECTLY RESTART THE 5-MINUTE COUNTDOWN FROM THIS EXACT MOMENT
     self._empty_since = None
+    # PER-TABLE RNG (UNDERSCORE = TRANSIENT: NEVER PUSHED/SAVED - A CLIENT-VISIBLE OR
+    # PERSISTED SEED WOULD MAKE EVERY FUTURE SHUFFLE PREDICTABLE). SEEDED FROM SYSTEM
+    # ENTROPY IMMEDIATELY SO THE TABLE IS ALWAYS PLAYABLE, THEN A THROWAWAY THREAD
+    # UPGRADES THE SEED FROM random.org IF REACHABLE (BEST-EFFORT - SEE
+    # _fetch_random_org_seed). RE-RUNS ON EVERY __init__ (FRESH TABLE, REINIT,
+    # GAME-OVER RESET) SO EACH GAME GETS ITS OWN SEED.
+    self._rng = random.Random()
+    self._seed_source = "system entropy"
+    # ON ITS OWN DAEMON THREAD, NOT queue_job(): AT BOOT __init__ RUNS BEFORE THE
+    # REGISTRY ASSIGNS _schedule_t, SO A QUEUED FETCH WOULD LAND ON THE *SHARED*
+    # HOUSEKEEPING WORKER AND ITS NETWORK TIMEOUT WOULD STALL EVERY TABLE'S POLLS -
+    # EXACTLY WHAT THE PER-TABLE WORKERS EXIST TO PREVENT. SAFE OFF-WORKER BECAUSE IT
+    # TOUCHES ONLY _rng/_seed_source (NEVER GAME STATE) AND PUSHES NOTHING.
+    threading.Thread(target=self._seed_rng_from_random_org, daemon=True).start()
 
     # SAVE-FILE LOCATIONS - SET BY THE TABLE REGISTRY (create_table/load_tables_from_disk)
     # RIGHT AFTER CONSTRUCTION, NOT A CONSTRUCTOR PARAM (SAME PATTERN AS self.socketio
@@ -494,6 +526,19 @@ class GameStateMachine:
   # SHARED HOUSEKEEPING WORKER, PRESERVING THE OLD SINGLE-QUEUE BEHAVIOUR THERE.
   def queue_job(self, job):
     (getattr(self, "_schedule_t", None) or schedule_t).jobqueue.put(job)
+  # RUNS ON A THROWAWAY DAEMON THREAD FROM __init__ (SEE THE _rng COMMENT THERE), SO
+  # AN UNREACHABLE random.org COSTS THE TABLE NOTHING BUT THE UPGRADE - THE SYSTEM
+  # ENTROPY SEED IT ALREADY HAS STAYS IN USE AND PLAY IS NEVER BLOCKED.
+  def _seed_rng_from_random_org(self):
+    if getattr(self, "_deleted", False):
+      return
+    seed = _fetch_random_org_seed()
+    if seed is None:
+      self.log("random.org unreachable - keeping the system-entropy seed", tag="RNG")
+      return
+    self._rng.seed(seed)
+    self._seed_source = "random.org"
+    self.log("Table RNG re-seeded from random.org", tag="RNG")
   def delay(self, seconds):
     if not self.skip_delays:
       sleep(seconds)
@@ -966,8 +1011,8 @@ class GameStateMachine:
       self.log(f"Created fresh deck.")
       self.deck = Deck(fill=True)
 
-      self.log(f"Shuffled Deck")
-      self.deck.shuffle()
+      self.log(f"Shuffled Deck ({self._seed_source})")
+      self.deck.shuffle(self._rng) # THIS TABLE'S OWN RNG, NOT THE GLOBAL random MODULE
 
       self.log(f"Emptying hands for players and empty kitty")
       for player in self.players:
@@ -978,7 +1023,7 @@ class GameStateMachine:
 
       # FIRST DEALER IS RANDOM, THEREAFTER IT PASSES CLOCKWISE EACH HAND
       if self.dealer == None:
-        self.dealer = randint(0,3)
+        self.dealer = self._rng.randint(0,3)
         self.dlg_dealer(self.players[self.dealer].name, randomly_chosen=True)
       else:
         self.dealer += 1

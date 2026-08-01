@@ -1,4 +1,4 @@
-from random import shuffle
+import random
 
 # ---------------------------------------------------------------------------
 # CARD ENCODING - MIRRORED IN static/game_client.js. KEEP THE TWO IN STEP.
@@ -78,8 +78,11 @@ class Deck(object):
     # DEALS OFF THE END OF THIS DECK - THE DEAL, THE KITTY AWARD AND DISCARDS ALL USE THIS
     for i in range(num):
       other_deck.add_card(self.pop_card())
-  def shuffle(self):
-    shuffle(self.cards)
+  # rng: A random.Random INSTANCE (EACH TABLE OWNS ONE - SEE game_state.py's _rng, WHICH
+  # random.org MAY RE-SEED). DEFAULTS TO THE GLOBAL random MODULE FOR ANY CALLER THAT
+  # DOESN'T HAVE ONE.
+  def shuffle(self, rng=None):
+    (rng or random).shuffle(self.cards)
   def get_index(self, find_card):
     for index,card in enumerate(self.cards):
       if card == find_card:

@@ -308,6 +308,32 @@ whenever a human takes a seat — handy if you're not watching the browser tab. 
 default; see step 5 of the installation instructions above to turn it on via
 `data/ntfy.json`, including the risk of using a public topic instead of self-hosting.
 
+## The shuffle is not messing about
+
+Most card games settle for a pseudo-random number generator: a tidy little algorithm
+that starts from the system clock and marches through a sequence that was, strictly
+speaking, decided in advance. Perfectly adequate. Deeply unromantic. When you are dealt
+ten cards without a bower in sight for the fourth hand running, you have merely been
+arithmetic'd.
+
+Web500 aims higher. Every table, on creation, reaches out to
+[random.org](https://www.random.org/) and requests a seed drawn from **atmospheric
+noise** — the raw electromagnetic hiss of the sky itself, thick with the crackle of
+every thunderstorm currently in progress on this planet, harvested by radio receivers
+and piped down the wire into the shuffling of your 43 cards.
+
+So when the joker sits in the kitty you didn't win, and your partner leads away from
+the one suit you were long in, take some comfort: that was not a bug, and it was not
+the author. That was **the weather**. Somewhere out there a storm front discharged a
+few million volts into the void, a receiver twitched, and the universe decided you were
+bidding seven no trumps tonight.
+
+Should random.org be unreachable — the internet being what it is — the table quietly
+falls back to your operating system's entropy pool and the game continues without
+ceremony. Less poetic. Still perfectly fair. But on a good day, with a clear route to
+the internet and a decent storm rolling through somewhere on Earth, your cards are
+genuinely being shuffled by the sky.
+
 ## Architecture
 
 File layout and file-by-file responsibilities live in
