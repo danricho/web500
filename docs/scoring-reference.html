@@ -420,8 +420,25 @@
         font-size: 0.72rem;
         color: var(--ink-soft);
       }
+      /* THE LINKS ON THE SHEET - ACCENT-COLOURED AND UNDERLINED IN PRINT TOO, SO
+         THE PRINTED/PDF COPY STILL READS AS A URL WORTH TYPING IN RATHER THAN AS
+         ORDINARY BODY TEXT. NEEDS print-color-adjust TO SURVIVE BROWSERS THAT
+         OTHERWISE STRIP COLOUR WHEN PRINTING. */
       .credit a {
         color: var(--accent);
+        text-decoration: underline;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      /* SHEET REVISION MARKER - DELIBERATELY QUIET: FLOATED OUT OF THE CREDIT
+         SENTENCE SO IT READS AS A PRINTER'S MARK, NOT PART OF THE TEXT. BUMP THIS
+         WHEN THE SHEET'S CONTENT CHANGES SO A PRINTED COPY CAN BE TOLD APART FROM
+         AN OLDER ONE ON THE TABLE. */
+      .sheet-version {
+        float: right;
+        margin-left: 0.75rem;
+        opacity: 0.7;
+        letter-spacing: 0.04em;
       }
 
       /* ---------- scorepad page ---------- */
@@ -843,14 +860,15 @@
           </div>
 
           <div class="credit">
+            <span class="sheet-version">v2</span>
             This summary follows the Australian four-handed game as described by
             John McLeod at
             <a href="https://www.pagat.com/euchre/500.html" target="_blank"
-              >pagat.com/euchre/500.html</a
+              >https://www.pagat.com/euchre/500.html</a
             >. For the definitive treatment and every regional variation, see
             that page. This sheet is generated from
             <a href="https://github.com/danricho/web500" target="_blank"
-              >github.com/danricho/web500</a
+              >https://github.com/danricho/web500</a
             >.
           </div>
         </div>
